@@ -4,7 +4,8 @@ const { isWithinRadius, DISTANCE_THRESHOLD_KM, getAdminDongAddress } = require('
 const path = require('path');
 require('dotenv').config();
 
-const UPLOAD_DIR_PUBLIC_PATH = `http://localhost:${process.env.PORT || 3000}/uploads`; // 이미지 접근을 위한 URL
+const UPLOAD_DIR_PUBLIC_PATH = `http://${process.env.SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
+
 
 // 새 글 작성 (이미지 포함)
 const createPost = async (req, res) => { // Make function async

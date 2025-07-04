@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
 const UPLOAD_DIR_PUBLIC_PATH = process.env.UPLOAD_DIR || './public/uploads';
 
 // 미들웨어 설정
@@ -16,8 +17,10 @@ app.use(cors()); // CORS 허용 (개발 시 필요)
 app.use(express.json()); // JSON 요청 본문 파싱
 app.use(express.urlencoded({ extended: true })); // URL-encoded 본문 파싱
 
-// 정적 파일 제공 (업로드된 이미지를 웹에서 접근 가능하게 함)
-app.use('/uploads', express.static(path.resolve(__dirname, '../../', UPLOAD_DIR_PUBLIC_PATH)));
+// // 정적 파일 제공 (업로드된 이미지를 웹에서 접근 가능하게 함)
+const resolvedUploadPath = path.resolve(__dirname, '../', UPLOAD_DIR_PUBLIC_PATH);
+console.log('Resolved Upload Path:', resolvedUploadPath); // 이 경로를 확인!
+app.use('/uploads', express.static(resolvedUploadPath));
 
 // 데이터베이스 연결
 connectDb();
@@ -40,6 +43,6 @@ app.get('/', (req, res) => {
 
 // 서버 시작
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Image uploads served from http://localhost:${PORT}/uploads`);
+    console.log(`Server running on http://${SERVER_HOST}:${PORT}`);
+    console.log(`Image uploads served from ${UPLOAD_DIR_PUBLIC_PATH}`);
 });
