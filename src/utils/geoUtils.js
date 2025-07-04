@@ -2,39 +2,51 @@
 import axios from 'axios';
 import 'dotenv/config'; // Load environment variables from .env file using ES module syntax
 
-// src/utils/geoUtils.js
-const DISTANCE_THRESHOLD_KM = 0.5; // Existing constant for default radius
-
-// Haversine formula to calculate distance between two points given their latitudes and longitudes
-function haversineDistance(coords1, coords2) {
-    const R = 6371; // Radius of Earth in kilometers
-    const lat1 = coords1.lat * Math.PI / 180;
-    const lon1 = coords1.lon * Math.PI / 180;
-    const lat2 = coords2.lat * Math.PI / 180;
-    const lon2 = coords2.lon * Math.PI / 180;
-
-    const dLat = lat2 - lat1;
-    const dLon = lon2 - lon1;
-
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in kilometers
-}
-
 /**
- * Checks if a post is within a specified radius of a given location.
- * @param {object} userLocation - Object with lat and lon properties for the user's current location.
- * @param {object} postLocation - Object with lat and lon properties for the post's location.
- * @param {number} [thresholdKm=DISTANCE_THRESHOLD_KM] - The maximum distance (in kilometers) for a post to be considered "within radius".
- * @returns {boolean} - True if the post is within the radius, false otherwise.
+ * Checks if a location (e.g., a post) is within a defined rectangular map viewport.
+ * This function expects the viewport to be defined by its center coordinates and delta values.
+ *
+ * @param {object} location - Object with 'lat' and 'lon' properties (e.g., a post's coordinates).
+ * @param {object} viewport - Object defining the map's visible area using center and delta:
+ * - centerLat: Latitude of the center of the viewport.
+ * - centerLon: Longitude of the center of the viewport.
+ * - deltaLat: The 'height' of the viewport in degrees latitude (maxLat - minLat).
+ * - deltaLon: The 'width' of the viewport in degrees longitude (maxLon - minLon).
+ * @returns {boolean} - True if the location is within the viewport, false otherwise.
  */
-function isWithinRadius(userLocation, postLocation, thresholdKm = DISTANCE_THRESHOLD_KM) {
-    const distance = haversineDistance(userLocation, postLocation);
-    return distance <= thresholdKm;
+function isWithinMapViewport(location, viewport) {
+    const { centerLat, centerLon, deltaLat, deltaLon } = viewport;
+
+    // 필수 파라미터 체크
+    if (centerLat === undefined || centerLon === undefined ||
+        deltaLat === undefined || deltaLon === undefined) {
+        console.error("Error: Viewport must contain centerLat, centerLon, deltaLat, and deltaLon.");
+        return false;
+    }
+
+    // 뷰포트의 최소/최대 위도 및 경도 계산
+    const minLat = centerLat - (deltaLat / 2);
+    const maxLat = centerLat + (deltaLat / 2);
+    const minLon = centerLon - (deltaLon / 2);
+    const maxLon = centerLon + (deltaLon / 2);
+
+    const { lat, lon } = location;
+
+    // 위치의 위도가 뷰포트 범위 내에 있는지 확인
+    const latInRange = lat >= minLat && lat <= maxLat;
+
+    // 위치의 경도가 뷰포트 범위 내에 있는지 확인
+    // 경도 180도/ -180도 경계선 넘나드는 경우 처리
+    let lonInRange;
+    if (minLon <= maxLon) { // 일반적인 경우 (경계선 안 넘어감)
+        lonInRange = lon >= minLon && lon <= maxLon;
+    } else { // 경계선을 넘어가는 경우 (예: minLon = 170, maxLon = -170)
+        lonInRange = (lon >= minLon || lon <= maxLon);
+    }
+
+    return latInRange && lonInRange;
 }
+
 
 // --- Configuration from .env ---
 const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name for clarity
@@ -75,16 +87,12 @@ async function getAdminDongAddress(longitude, latitude) {
         }
     } catch (error) {
         console.error("Error calling Kakao API:", error.message);
-        // You can log more detailed error response for debugging:
-        // console.error("API Error Response:", error.response ? error.response.data : "No response data");
         return "API 호출 중 오류가 발생했습니다.";
     }
 }
 
 // --- Module Exports ---
 module.exports = {
-    isWithinRadius,
-    DISTANCE_THRESHOLD_KM,
     getAdminDongAddress,
-    haversineDistance // Export haversineDistance if you need it directly elsewhere
+    isWithinMapViewport
 };

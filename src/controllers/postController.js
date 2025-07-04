@@ -132,34 +132,42 @@ const getNearbyPosts = async (req, res) => { // Make function async
 };
 
 /**
- * Retrieves posts within a specified circular radius from a given center point.
+ * Retrieves posts within a specified rectangular map viewport.
  * @param {object} req - The request object, expecting query parameters:
- * - centerLat: Latitude of the circle's center.
- * - centerLon: Longitude of the circle's center.
- * - radiusKm: The radius of the circle in kilometers.
+ * - centerLat: Latitude of the center of the viewport.
+ * - centerLon: Longitude of the center of the viewport.
+ * - deltaLat: The 'height' of the viewport in degrees latitude (maxLat - minLat).
+ * - deltaLon: The 'width' of the viewport in degrees longitude (maxLon - minLon).
  * @param {object} res - The response object.
  */
-const getPostsbyCircle = async (req, res) => {
-    const { centerLat, centerLon, radiusKm } = req.query;
+const getPostsInViewport = async (req, res) => {
+    const { centerLat, centerLon, deltaLat, deltaLon } = req.query;
 
     // Validate input parameters
     const parsedCenterLat = parseFloat(centerLat);
     const parsedCenterLon = parseFloat(centerLon);
-    const parsedRadiusKm = parseFloat(radiusKm);
+    const parsedDeltaLat = parseFloat(deltaLat);
+    const parsedDeltaLon = parseFloat(deltaLon);
 
-    if (isNaN(parsedCenterLat) || isNaN(parsedCenterLon) || isNaN(parsedRadiusKm) || parsedRadiusKm <= 0) {
-        return res.status(400).json({ message: 'Valid centerLat, centerLon, and a positive radiusKm are required query parameters.' });
+    if (isNaN(parsedCenterLat) || isNaN(parsedCenterLon) ||
+        isNaN(parsedDeltaLat) || isNaN(parsedDeltaLon) ||
+        parsedDeltaLat < 0 || parsedDeltaLon < 0) {
+        return res.status(400).json({ message: 'Valid centerLat, centerLon, non-negative deltaLat, and non-negative deltaLon are required query parameters.' });
     }
 
-    const centerLocation = { lat: parsedCenterLat, lon: parsedCenterLon };
+    const viewport = {
+        centerLat: parsedCenterLat,
+        centerLon: parsedCenterLon,
+        deltaLat: parsedDeltaLat,
+        deltaLon: parsedDeltaLon
+    };
 
     try {
-        const db = getDb();
+        const db = getDb(); // Get your database instance
 
-        // Fetch all posts. For very large datasets, this approach might be inefficient
-        // as it filters in memory. For a production environment with spatial indexing
-        // (e.g., using PostGIS with PostgreSQL), a more optimized database query
-        // would be used to filter directly in the database.
+        // Fetch all posts. As noted in your original code, for very large datasets,
+        // filtering in memory might be inefficient. For a production environment
+        // with spatial indexing, a more optimized database query would be preferred.
         const allPosts = db.prepare(`
             SELECT
                 p.id,
@@ -175,26 +183,25 @@ const getPostsbyCircle = async (req, res) => {
             ORDER BY p.created_at DESC
         `).all();
 
-        // Filter posts that are within the specified radius using the updated isWithinRadius
-        const postsInCircle = allPosts.filter(post =>
-            isWithinRadius(centerLocation, { lat: post.lat, lon: post.lon }, parsedRadiusKm)
+        // Filter posts that are within the specified viewport
+        const postsInViewport = allPosts.filter(post =>
+            isWithinMapViewport({ lat: post.lat, lon: post.lon }, viewport)
         );
 
         res.json({
-            message: `Posts within ${parsedRadiusKm} km of [${parsedCenterLat}, ${parsedCenterLon}]`,
-            centerLocation: centerLocation,
-            radiusKm: parsedRadiusKm,
-            postsInCircle: postsInCircle
+            message: `Posts within the specified viewport.`,
+            viewport: viewport,
+            postsInViewport: postsInViewport
         });
 
     } catch (error) {
-        console.error('Error fetching posts by circle:', error.message);
-        res.status(500).json({ message: 'Error fetching posts by circle.', error: error.message });
+        console.error('Error fetching posts by viewport:', error.message);
+        res.status(500).json({ message: 'Error fetching posts by viewport.', error: error.message });
     }
 };
 
 module.exports = {
     createPost,
     getNearbyPosts,
-    getPostsbyCircle // Export the new function
+    getPostsInViewport
 };
