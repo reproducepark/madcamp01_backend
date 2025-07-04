@@ -1,36 +1,67 @@
 // src/utils/geoUtils.js
-const geolib = require('geolib');
-require('dotenv').config();
+import axios from 'axios';
+import 'dotenv/config'; // Load environment variables from .env file using ES module syntax
 
-const DISTANCE_THRESHOLD_KM = parseFloat(process.env.DISTANCE_THRESHOLD_KM) || 5; // .env에서 설정된 값
+// --- Configuration from .env ---
+const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name for clarity
 
-/**
- * 두 지점 간의 거리를 킬로미터 단위로 계산합니다.
- * @param {object} coord1 { latitude: lat1, longitude: lon1 }
- * @param {object} coord2 { latitude: lat2, longitude: lon2 }
- * @returns {number} 거리 (킬로미터)
- */
-function getDistanceKm(coord1, coord2) {
-    const distanceMeters = geolib.getDistance(
-        { latitude: coord1.lat, longitude: coord1.lon },
-        { latitude: coord2.lat, longitude: coord2.lon }
-    );
-    return distanceMeters / 1000; // 미터를 킬로미터로 변환
-}
+// --- Kakao API Utility Function ---
 
 /**
- * 특정 지점이 반경 내에 있는지 확인합니다.
- * @param {object} centerCoord { lat, lon } - 중심 지점
- * @param {object} pointCoord { lat, lon } - 확인할 지점
- * @param {number} radiusKm - 반경 (킬로미터)
- * @returns {boolean} 반경 내에 있으면 true, 아니면 false
+ * Retrieves the administrative dong address for a given longitude and latitude using Kakao API.
+ * @param {number} longitude - The longitude of the location.
+ * @param {number} latitude - The latitude of the location.
+ * @returns {Promise<string>} A promise that resolves to the administrative dong address or an error message.
  */
-function isWithinRadius(centerCoord, pointCoord, radiusKm = DISTANCE_THRESHOLD_KM) {
-    return getDistanceKm(centerCoord, pointCoord) <= radiusKm;
+async function getAdminDongAddress(longitude, latitude) {
+    if (!KAKAO_REST_API_KEY) {
+        console.error("Error: Kakao REST API Key (REST_API_KEY) is not defined in your .env file.");
+        return "API 키가 설정되지 않았습니다.";
+    }
+
+    const url = `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json`;
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`
+            },
+            params: {
+                x: longitude,
+                y: latitude
+            }
+        });
+
+        const documents = response.data.documents;
+
+        // Find the administrative dong (region_type 'H')
+        const adminDong = documents.find(doc => doc.region_type === 'H');
+
+        if (adminDong) {
+            return adminDong.address_name;
+        } else {
+            return "행정동 주소를 찾을 수 없습니다.";
+        }
+    } catch (error) {
+        console.error("Error calling Kakao API:", error.message);
+        // You can log more detailed error response for debugging:
+        // console.error("API Error Response:", error.response ? error.response.data : "No response data");
+        return "API 호출 중 오류가 발생했습니다.";
+    }
 }
 
-module.exports = {
-    getDistanceKm,
-    isWithinRadius,
-    DISTANCE_THRESHOLD_KM // 외부에서 접근 가능하도록 내보내기
+// --- Module Exports ---
+export {
+    getAdminDongAddress
 };
+
+// --- Example Usage (for testing purposes, can be removed in production) ---
+// const myLongitude = 128.205284;
+// const myLatitude = 35.207029;
+
+// getAdminDongAddress(myLongitude, myLatitude)
+//   .then(address => {
+//     console.log("현재 위치의 행정동:", address);
+//   })
+//   .catch(error => {
+//     console.error("에러:", error);
+//   });

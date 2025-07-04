@@ -8,7 +8,7 @@ const BASE_URL = 'http://localhost:3000/api';
 
 // 테스트용 사용자 정보 및 위치
 const testUser = {
-    nickname: 'nodejs_test_user12',
+    nickname: 'nodejs_test_user3',
     lat: 36.3504, // 대전광역시청 근처
     lon: 127.3845
 };
@@ -35,48 +35,59 @@ async function runTests() {
         });
         console.log('온보딩 응답:', onboardRes.data);
         userId = onboardRes.data.userId; // 생성된 userId 저장
+        adminDong = onboardRes.data.adminDong; // 생성된 adminDong 저장
 
         if (!userId) {
             console.error('사용자 ID를 가져오지 못했습니다. 테스트 중단.');
             return;
         }
         console.log(`획득한 userId: ${userId}`);
+        console.log(`획득한 adminDong: ${adminDong}`); // adminDong 출력
 
-        // console.log('\n--- 2. 글 작성 테스트 (이미지 포함) ---');
-        // const formData = new FormData();
-        // formData.append('userId', userId);
-        // formData.append('content', testPost.content);
-        // formData.append('lat', testPost.lat);
-        // formData.append('lon', testPost.lon);
-        // formData.append('image', fs.createReadStream(testImagePath)); // 파일 스트림 추가
+        console.log('\n--- 2. 글 작성 테스트 (이미지 포함) ---');
+        const formData = new FormData();
+        formData.append('userId', userId);
+        formData.append('content', testPost.content);
+        formData.append('lat', testPost.lat);
+        formData.append('lon', testPost.lon);
+        formData.append('image', fs.createReadStream(testImagePath)); // 파일 스트림 추가
 
-        // const postRes = await axios.post(`${BASE_URL}/posts`, formData, {
-        //     headers: {
-        //         ...formData.getHeaders() // FormData의 Content-Type 헤더를 자동으로 설정
-        //     }
-        // });
+        const postRes = await axios.post(`${BASE_URL}/posts`, formData, {
+            headers: {
+                ...formData.getHeaders() // FormData의 Content-Type 헤더를 자동으로 설정
+            }
+        });
         // console.log('글 작성 응답:', postRes.data);
 
-        // console.log('\n--- 3. 근처 동네 글 조회 테스트 ---');
-        // const nearbyRes = await axios.get(`${BASE_URL}/posts/nearby`, {
-        //     params: {
-        //         currentLat: 36.3520,
-        //         currentLon: 127.3860
-        //     }
-        // });
-        // console.log('근처 글 조회 응답:', JSON.stringify(nearbyRes.data, null, 2));
+        // 응답에서 content, imageUrl, adminDong 확인
+        const { content: createdContent, imageUrl: createdImageUrl, adminDong: createdAdminDong } = postRes.data;
 
-        // console.log('\n--- 4. 사용자 위치 업데이트 테스트 ---');
-        // const updateLocationRes = await axios.post(`${BASE_URL}/auth/update-location`, {
-        //     userId: userId,
-        //     lat: 36.3450,
-        //     lon: 127.3780
-        // }, {
-        //     headers: {
-        //         'Content-Type': 'application/json'
-        //     }
-        // });
+        console.log(`작성된 글 내용 확인: ${createdContent}`);
+        console.log(`작성된 이미지 URL 확인: ${createdImageUrl}`);
+        console.log(`작성된 글의 행정동 확인: ${createdAdminDong}`);
+
+        console.log('\n--- 3. 근처 동네 글 조회 테스트 ---');
+        const nearbyRes = await axios.get(`${BASE_URL}/posts/nearby`, {
+            params: {
+                currentLat: 36.3510,
+                currentLon: 127.3850
+            }
+        });
+        console.log('근처 글 조회 응답:', JSON.stringify(nearbyRes.data, null, 2));
+
+        console.log('\n--- 4. 사용자 위치 업데이트 테스트 ---');
+        const updateLocationRes = await axios.post(`${BASE_URL}/auth/update-location`, {
+            userId: userId,
+            lat: 36.3000,
+            lon: 127.3780
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         // console.log('위치 업데이트 응답:', updateLocationRes.data);
+        // 추가: 업데이트된 adminDong을 명확하게 출력
+        console.log('업데이트된 행정동:', updateLocationRes.data.adminDong);
 
     } catch (error) {
         if (error.response) {
