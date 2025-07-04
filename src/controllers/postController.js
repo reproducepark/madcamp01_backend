@@ -4,7 +4,8 @@ const { isWithinRadius, DISTANCE_THRESHOLD_KM, getAdminDongAddress } = require('
 const path = require('path');
 require('dotenv').config();
 
-const UPLOAD_DIR_PUBLIC_PATH = `http://${process.env.SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
+const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
+const UPLOAD_DIR_PUBLIC_PATH = `http://${SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
 
 
 // 새 글 작성 (이미지 포함)
