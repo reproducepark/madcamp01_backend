@@ -10,7 +10,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
-const UPLOAD_DIR_PUBLIC_PATH = process.env.UPLOAD_DIR || './public/uploads';
+const UPLOAD_DIR_PUBLIC_PATH = './public/uploads';
 
 // 미들웨어 설정
 app.use(cors()); // CORS 허용 (개발 시 필요)
@@ -44,5 +44,5 @@ app.get('/', (req, res) => {
 // 서버 시작
 app.listen(PORT, () => {
     console.log(`Server running on http://${SERVER_HOST}:${PORT}`);
-    console.log(`Image uploads served from ${UPLOAD_DIR_PUBLIC_PATH}`);
+    console.log(`Uploads can be accessed at http://${SERVER_HOST}:${PORT}/uploads`);
 });
