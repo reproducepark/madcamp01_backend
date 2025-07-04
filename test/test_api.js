@@ -4,7 +4,9 @@ const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 
-const BASE_URL = 'http://localhost:3000/api';
+// const BASE_URL = 'http://localhost:3000/api';
+const BASE_URL = 'http://api.reproducepark.my:3000/api';
+
 
 // 테스트용 사용자 정보 및 위치
 const testUser = {
