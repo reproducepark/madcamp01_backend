@@ -1,20 +1,23 @@
-// test_api.js (앞부분은 동일)
+// test_api.js
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
 const path = require('path');
 const assert = require('assert');
+const crypto = require('crypto'); // crypto 모듈 추가!
 
 // 설정
 const BASE_URL = 'http://api.reproducepark.my:3000/api';
-const UPLOAD_BASE_URL = 'http://api.reproducepark.my:3000/uploads'; // 업로드된 이미지 다운로드 URL
+const UPLOAD_BASE_URL = 'http://api.reproducepark.my:3000/uploads';
 const TEST_IMAGE_PATH = path.join(__dirname, 'test.png');
-const DOWNLOAD_DIR = path.join(__dirname, 'downloads'); // 다운로드된 이미지를 저장할 디렉토리
+const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 
-// 테스트 데이터 (고유한 닉네임을 위해 타임스탬프 추가)
+const ORIGINAL_IMAGE_MD5 = '1251e844b093eeb27b4452d0c2298d92';
+
+// 테스트 데이터
 const testUser = {
     nickname: 'nodejs_test_user_' + Date.now(),
-    lat: 36.3504, // 대전광역시청 근처
+    lat: 36.3504,
     lon: 127.3845
 };
 
@@ -95,7 +98,7 @@ async function createPostWithImage(userId, postData, imagePath) {
         assert.ok(createdImageUrl, '이미지 URL이 존재해야 합니다.');
         assert.ok(createdAdminDong, '작성된 글에 행정동이 존재해야 합니다.');
 
-        return response.data; // imageUrl을 반환하여 다음 테스트에서 사용할 수 있도록 합니다.
+        return response.data;
     } catch (error) {
         handleApiError(error);
     }
@@ -115,14 +118,12 @@ async function getNearbyPosts(lat, lon) {
         });
         console.log('근처 글 조회 응답:', JSON.stringify(response.data, null, 2));
 
-        // 응답 데이터 검증 (객체 형식 및 nearbyPosts 배열 확인)
         assert.ok(typeof response.data === 'object' && response.data !== null, '응답은 객체여야 합니다.');
         assert.ok(response.data.message, '응답에 message 필드가 있어야 합니다.');
         assert.ok(response.data.yourLocation, '응답에 yourLocation 필드가 있어야 합니다.');
         assert.ok(response.data.yourAdminDong, '응답에 yourAdminDong 필드가 있어야 합니다.');
         assert.ok(Array.isArray(response.data.nearbyPosts), 'nearbyPosts는 배열이어야 합니다.');
-        
-        // 예시로 첫 번째 게시물의 content를 확인 (선택 사항)
+
         if (response.data.nearbyPosts.length > 0) {
             console.log(`첫 번째 근처 글 내용: ${response.data.nearbyPosts[0].content}`);
             assert.ok(response.data.nearbyPosts[0].content, '첫 번째 게시물에 내용이 있어야 합니다.');
@@ -162,21 +163,44 @@ async function updateUserLocation(userId, newLat, newLon) {
 }
 
 /**
- * 주어진 URL에서 이미지를 다운로드하고 로컬에 저장합니다.
- * @param {string} imageUrl - 다운로드할 이미지의 전체 URL (예: http://api.reproducepark.my:3000/uploads/image-name.png).
+ * 주어진 파일의 MD5 해시를 계산합니다.
+ * @param {string} filePath - 해시를 계산할 파일의 경로.
+ * @returns {Promise<string>} - 파일의 MD5 해시 값.
+ */
+function calculateFileMD5(filePath) {
+    return new Promise((resolve, reject) => {
+        const hash = crypto.createHash('md5');
+        const stream = fs.createReadStream(filePath);
+
+        stream.on('data', (chunk) => {
+            hash.update(chunk);
+        });
+
+        stream.on('end', () => {
+            resolve(hash.digest('hex'));
+        });
+
+        stream.on('error', (err) => {
+            reject(err);
+        });
+    });
+}
+
+/**
+ * 주어진 URL에서 이미지를 다운로드하고 로컬에 저장하며, MD5 해시를 검증합니다.
+ * @param {string} imageUrl - 다운로드할 이미지의 전체 URL.
  * @param {string} outputDir - 이미지를 저장할 로컬 디렉토리 경로.
+ * @param {string} expectedMd5 - 기대하는 MD5 해시 값.
  * @returns {Promise<string>} - 다운로드된 파일의 전체 경로.
  */
-async function downloadImage(imageUrl, outputDir) {
-    console.log('\n--- 5. 이미지 다운로드 테스트 ---');
+async function downloadImageAndVerifyMD5(imageUrl, outputDir, expectedMd5) {
+    console.log('\n--- 5. 이미지 다운로드 및 MD5 검증 테스트 ---');
     try {
-        // 다운로드 디렉토리가 없으면 생성
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
 
-        // URL에서 파일명 추출. 'uploads/'가 포함된 경로에서 파일명만 추출하기 위해 pathname 사용
-        const fileName = path.basename(new URL(imageUrl).pathname); 
+        const fileName = path.basename(new URL(imageUrl).pathname);
         const localFilePath = path.join(outputDir, fileName);
 
         console.log(`이미지 다운로드 시도: ${imageUrl} -> ${localFilePath}`);
@@ -184,42 +208,56 @@ async function downloadImage(imageUrl, outputDir) {
         const response = await axios({
             method: 'get',
             url: imageUrl,
-            responseType: 'stream' // 스트림으로 응답을 받음
+            responseType: 'stream'
         });
 
-        // 응답 스트림을 파일에 파이프
         const writer = fs.createWriteStream(localFilePath);
         response.data.pipe(writer);
 
-        return new Promise((resolve, reject) => {
-            writer.on('finish', () => {
+        return new Promise(async (resolve, reject) => { // async/await 사용을 위해 Promise 함수를 async로 변경
+            writer.on('finish', async () => { // finish 이벤트 핸들러도 async로 변경
                 console.log(`이미지 다운로드 성공: ${localFilePath}`);
-                // 다운로드된 파일의 크기가 0이 아닌지 확인 (간단한 유효성 검사)
-                const stats = fs.statSync(localFilePath);
-                assert.ok(stats.size > 0, '다운로드된 이미지 파일 크기가 0보다 커야 합니다.');
-                resolve(localFilePath);
+
+                // 다운로드된 파일의 MD5 해시 계산
+                try {
+                    const downloadedFileMD5 = await calculateFileMD5(localFilePath);
+                    console.log(`원본 MD5: ${expectedMd5}`);
+                    console.log(`다운로드된 파일 MD5: ${downloadedFileMD5}`);
+
+                    // MD5 값 비교
+                    assert.strictEqual(downloadedFileMD5, expectedMd5, '다운로드된 파일의 MD5 해시가 원본과 일치해야 합니다.');
+                    console.log('MD5 해시 검증 성공!');
+                    resolve(localFilePath);
+                } catch (md5Error) {
+                    console.error(`MD5 해시 계산 또는 비교 중 오류 발생: ${md5Error.message}`);
+                    fs.unlink(localFilePath, () => reject(md5Error)); // 에러 발생 시 파일 삭제
+                }
             });
             writer.on('error', (err) => {
                 console.error(`이미지 다운로드 중 오류 발생: ${err.message}`);
-                fs.unlink(localFilePath, () => reject(err)); // 에러 발생 시 부분적으로 다운로드된 파일 삭제
+                fs.unlink(localFilePath, () => reject(err));
             });
         });
     } catch (error) {
-        console.error(`이미지 다운로드 테스트 실패: ${error.message}`);
-        handleApiError(error); // 에러 처리 함수 사용
+        console.error(`이미지 다운로드 및 MD5 검증 테스트 실패: ${error.message}`);
+        handleApiError(error);
     }
 }
-
 
 // --- 테스트 실행기 ---
 
 async function runAllTests() {
     let userId = null;
-    let createdImageUrl = null; // 생성된 이미지 URL을 저장할 변수
+    let createdImageUrl = null;
 
     console.log('--- API 테스트 시작 ---');
     console.log(`기본 URL: ${BASE_URL}`);
     console.log(`테스트 사용자 닉네임: ${testUser.nickname}`);
+
+    if (ORIGINAL_IMAGE_MD5 === 'YOUR_TEST_PNG_MD5_HASH_HERE') {
+        console.error('\n--- 오류: ORIGINAL_IMAGE_MD5 값을 test.png의 실제 MD5 값으로 업데이트하세요! ---');
+        process.exit(1);
+    }
 
     try {
         // 테스트 1: 사용자 온보딩
@@ -228,7 +266,7 @@ async function runAllTests() {
 
         // 테스트 2: 이미지를 포함한 글 작성
         const postResult = await createPostWithImage(userId, testPost, TEST_IMAGE_PATH);
-        createdImageUrl = postResult.imageUrl; // 생성된 이미지 URL 저장
+        createdImageUrl = postResult.imageUrl;
 
         // 테스트 3: 근처 글 조회
         await getNearbyPosts(testPost.lat, testPost.lon);
@@ -236,22 +274,19 @@ async function runAllTests() {
         // 테스트 4: 사용자 위치 업데이트
         await updateUserLocation(userId, 36.3000, 127.3780);
 
-        // 테스트 5: 업로드된 이미지 다운로드
+        // 테스트 5: 업로드된 이미지 다운로드 및 MD5 검증
         if (createdImageUrl) {
-            // 서버의 전체 이미지 URL을 사용합니다.
-            // createdImageUrl이 이미 전체 URL이더라도 path.basename을 사용하여 파일명만 추출 후 UPLOAD_BASE_URL과 합쳐 안정적인 URL을 만듭니다.
             const fullImageUrl = `${UPLOAD_BASE_URL}/${path.basename(new URL(createdImageUrl).pathname)}`;
-            await downloadImage(fullImageUrl, DOWNLOAD_DIR);
+            await downloadImageAndVerifyMD5(fullImageUrl, DOWNLOAD_DIR, ORIGINAL_IMAGE_MD5); // MD5 값을 인자로 전달
         } else {
-            console.warn('이미지 URL이 없어 이미지 다운로드 테스트를 건너뜁니다.');
+            console.warn('이미지 URL이 없어 이미지 다운로드 및 MD5 검증 테스트를 건너뜁니다.');
         }
-
 
         console.log('\n--- 모든 테스트 성공적으로 완료! ---');
 
     } catch (error) {
         console.error('\n--- 하나 이상의 테스트가 실패했습니다! ---');
-        process.exit(1); // 실패를 나타내기 위해 0이 아닌 코드로 종료
+        process.exit(1);
     }
 }
 
