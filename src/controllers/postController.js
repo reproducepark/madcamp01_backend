@@ -131,7 +131,70 @@ const getNearbyPosts = async (req, res) => { // Make function async
     }
 };
 
+/**
+ * Retrieves posts within a specified circular radius from a given center point.
+ * @param {object} req - The request object, expecting query parameters:
+ * - centerLat: Latitude of the circle's center.
+ * - centerLon: Longitude of the circle's center.
+ * - radiusKm: The radius of the circle in kilometers.
+ * @param {object} res - The response object.
+ */
+const getPostsbyCircle = async (req, res) => {
+    const { centerLat, centerLon, radiusKm } = req.query;
+
+    // Validate input parameters
+    const parsedCenterLat = parseFloat(centerLat);
+    const parsedCenterLon = parseFloat(centerLon);
+    const parsedRadiusKm = parseFloat(radiusKm);
+
+    if (isNaN(parsedCenterLat) || isNaN(parsedCenterLon) || isNaN(parsedRadiusKm) || parsedRadiusKm <= 0) {
+        return res.status(400).json({ message: 'Valid centerLat, centerLon, and a positive radiusKm are required query parameters.' });
+    }
+
+    const centerLocation = { lat: parsedCenterLat, lon: parsedCenterLon };
+
+    try {
+        const db = getDb();
+
+        // Fetch all posts. For very large datasets, this approach might be inefficient
+        // as it filters in memory. For a production environment with spatial indexing
+        // (e.g., using PostGIS with PostgreSQL), a more optimized database query
+        // would be used to filter directly in the database.
+        const allPosts = db.prepare(`
+            SELECT
+                p.id,
+                p.content,
+                p.image_url,
+                p.lat,
+                p.lon,
+                p.created_at,
+                p.admin_dong,
+                u.nickname
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.created_at DESC
+        `).all();
+
+        // Filter posts that are within the specified radius using the updated isWithinRadius
+        const postsInCircle = allPosts.filter(post =>
+            isWithinRadius(centerLocation, { lat: post.lat, lon: post.lon }, parsedRadiusKm)
+        );
+
+        res.json({
+            message: `Posts within ${parsedRadiusKm} km of [${parsedCenterLat}, ${parsedCenterLon}]`,
+            centerLocation: centerLocation,
+            radiusKm: parsedRadiusKm,
+            postsInCircle: postsInCircle
+        });
+
+    } catch (error) {
+        console.error('Error fetching posts by circle:', error.message);
+        res.status(500).json({ message: 'Error fetching posts by circle.', error: error.message });
+    }
+};
+
 module.exports = {
     createPost,
-    getNearbyPosts
+    getNearbyPosts,
+    getPostsbyCircle // Export the new function
 };

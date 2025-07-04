@@ -2,10 +2,42 @@
 import axios from 'axios';
 import 'dotenv/config'; // Load environment variables from .env file using ES module syntax
 
+// src/utils/geoUtils.js
+const DISTANCE_THRESHOLD_KM = 0.5; // Existing constant for default radius
+
+// Haversine formula to calculate distance between two points given their latitudes and longitudes
+function haversineDistance(coords1, coords2) {
+    const R = 6371; // Radius of Earth in kilometers
+    const lat1 = coords1.lat * Math.PI / 180;
+    const lon1 = coords1.lon * Math.PI / 180;
+    const lat2 = coords2.lat * Math.PI / 180;
+    const lon2 = coords2.lon * Math.PI / 180;
+
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in kilometers
+}
+
+/**
+ * Checks if a post is within a specified radius of a given location.
+ * @param {object} userLocation - Object with lat and lon properties for the user's current location.
+ * @param {object} postLocation - Object with lat and lon properties for the post's location.
+ * @param {number} [thresholdKm=DISTANCE_THRESHOLD_KM] - The maximum distance (in kilometers) for a post to be considered "within radius".
+ * @returns {boolean} - True if the post is within the radius, false otherwise.
+ */
+function isWithinRadius(userLocation, postLocation, thresholdKm = DISTANCE_THRESHOLD_KM) {
+    const distance = haversineDistance(userLocation, postLocation);
+    return distance <= thresholdKm;
+}
+
 // --- Configuration from .env ---
 const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name for clarity
-
-// --- Kakao API Utility Function ---
 
 /**
  * Retrieves the administrative dong address for a given longitude and latitude using Kakao API.
@@ -50,18 +82,9 @@ async function getAdminDongAddress(longitude, latitude) {
 }
 
 // --- Module Exports ---
-export {
-    getAdminDongAddress
+module.exports = {
+    isWithinRadius,
+    DISTANCE_THRESHOLD_KM,
+    getAdminDongAddress,
+    haversineDistance // Export haversineDistance if you need it directly elsewhere
 };
-
-// --- Example Usage (for testing purposes, can be removed in production) ---
-// const myLongitude = 128.205284;
-// const myLatitude = 35.207029;
-
-// getAdminDongAddress(myLongitude, myLatitude)
-//   .then(address => {
-//     console.log("현재 위치의 행정동:", address);
-//   })
-//   .catch(error => {
-//     console.error("에러:", error);
-//   });
