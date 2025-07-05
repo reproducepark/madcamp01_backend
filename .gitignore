@@ -3,4 +3,4 @@ public/uploads/
 test/test.png
 .env
 node_modules/
-/public/uploads/
+test/downloads
