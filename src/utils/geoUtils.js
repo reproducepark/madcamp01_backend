@@ -14,7 +14,7 @@ import 'dotenv/config'; // Load environment variables from .env file using ES mo
  * - deltaLon: The 'width' of the viewport in degrees longitude (maxLon - minLon).
  * @returns {boolean} - True if the location is within the viewport, false otherwise.
  */
-function isWithinMapViewport(location, viewport) {
+export function isWithinMapViewport(location, viewport) { // 'export' 키워드 추가
     const { centerLat, centerLon, deltaLat, deltaLon } = viewport;
 
     // 필수 파라미터 체크
@@ -57,7 +57,7 @@ const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name
  * @param {number} latitude - The latitude of the location.
  * @returns {Promise<string>} A promise that resolves to the administrative dong address or an error message.
  */
-async function getAdminDongAddress(longitude, latitude) {
+export async function getAdminDongAddress(longitude, latitude) { // 'export' 키워드 추가
     if (!KAKAO_REST_API_KEY) {
         console.error("Error: Kakao REST API Key (REST_API_KEY) is not defined in your .env file.");
         return "API 키가 설정되지 않았습니다.";
@@ -91,8 +91,5 @@ async function getAdminDongAddress(longitude, latitude) {
     }
 }
 
-// --- Module Exports ---
-module.exports = {
-    getAdminDongAddress,
-    isWithinMapViewport
-};
+// CommonJS 방식의 module.exports는 제거합니다.
+// 대신 각 함수 앞에 'export' 키워드를 붙여 ES 모듈 방식으로 내보냅니다.
