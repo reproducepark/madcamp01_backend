@@ -1,7 +1,6 @@
 // src/controllers/postController.js
 const { getDb } = require('../config/db');
-const { isWithinRadius, DISTANCE_THRESHOLD_KM, getAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
-const path = require('path');
+const { isWithinMapViewport, getAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
 require('dotenv').config();
 
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
@@ -95,29 +94,6 @@ const getNearbyPosts = async (req, res) => { // Make function async
             `).all(userAdminDong);
         }
 
-        // 3. If no posts are found in the same administrative dong, or if admin dong lookup failed,
-        // fall back to the radius-based search (all posts then filter)
-        if (posts.length === 0) {
-            const allPosts = db.prepare(`
-                SELECT
-                    p.id,
-                    p.content,
-                    p.image_url,
-                    p.lat,
-                    p.lon,
-                    p.created_at,
-                    p.admin_dong,
-                    u.nickname
-                FROM posts p
-                JOIN users u ON p.user_id = u.id
-                ORDER BY p.created_at DESC
-            `).all();
-
-            posts = allPosts.filter(post =>
-                isWithinRadius(userLocation, { lat: post.lat, lon: post.lon })
-            );
-        }
-
         res.json({
             message: `Posts for your neighborhood (${userAdminDong || 'unknown'})`,
             yourLocation: userLocation,
@@ -131,7 +107,77 @@ const getNearbyPosts = async (req, res) => { // Make function async
     }
 };
 
+/**
+ * Retrieves posts within a specified rectangular map viewport.
+ * @param {object} req - The request object, expecting query parameters:
+ * - centerLat: Latitude of the center of the viewport.
+ * - centerLon: Longitude of the center of the viewport.
+ * - deltaLat: The 'height' of the viewport in degrees latitude (maxLat - minLat).
+ * - deltaLon: The 'width' of the viewport in degrees longitude (maxLon - minLon).
+ * @param {object} res - The response object.
+ */
+const getPostsInViewport = async (req, res) => {
+    const { centerLat, centerLon, deltaLat, deltaLon } = req.query;
+
+    // Validate input parameters
+    const parsedCenterLat = parseFloat(centerLat);
+    const parsedCenterLon = parseFloat(centerLon);
+    const parsedDeltaLat = parseFloat(deltaLat);
+    const parsedDeltaLon = parseFloat(deltaLon);
+
+    if (isNaN(parsedCenterLat) || isNaN(parsedCenterLon) ||
+        isNaN(parsedDeltaLat) || isNaN(parsedDeltaLon) ||
+        parsedDeltaLat < 0 || parsedDeltaLon < 0) {
+        return res.status(400).json({ message: 'Valid centerLat, centerLon, non-negative deltaLat, and non-negative deltaLon are required query parameters.' });
+    }
+
+    const viewport = {
+        centerLat: parsedCenterLat,
+        centerLon: parsedCenterLon,
+        deltaLat: parsedDeltaLat,
+        deltaLon: parsedDeltaLon
+    };
+
+    try {
+        const db = getDb(); // Get your database instance
+
+        // Fetch all posts. As noted in your original code, for very large datasets,
+        // filtering in memory might be inefficient. For a production environment
+        // with spatial indexing, a more optimized database query would be preferred.
+        const allPosts = db.prepare(`
+            SELECT
+                p.id,
+                p.content,
+                p.image_url,
+                p.lat,
+                p.lon,
+                p.created_at,
+                p.admin_dong,
+                u.nickname
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.created_at DESC
+        `).all();
+
+        // Filter posts that are within the specified viewport
+        const postsInViewport = allPosts.filter(post =>
+            isWithinMapViewport({ lat: post.lat, lon: post.lon }, viewport)
+        );
+
+        res.json({
+            message: `Posts within the specified viewport.`,
+            viewport: viewport,
+            postsInViewport: postsInViewport
+        });
+
+    } catch (error) {
+        console.error('Error fetching posts by viewport:', error.message);
+        res.status(500).json({ message: 'Error fetching posts by viewport.', error: error.message });
+    }
+};
+
 module.exports = {
     createPost,
-    getNearbyPosts
+    getNearbyPosts,
+    getPostsInViewport
 };

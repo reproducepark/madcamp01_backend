@@ -1,4 +1,4 @@
-// test_api.js
+// test/test_api.js
 const axios = require('axios');
 const fs = require('fs');
 const FormData = require('form-data');
