@@ -1,7 +1,6 @@
 // src/controllers/postController.js
 const { getDb } = require('../config/db');
-const { isWithinRadius, DISTANCE_THRESHOLD_KM, getAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
-const path = require('path');
+const { isWithinMapViewport, getAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
 require('dotenv').config();
 
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
@@ -93,29 +92,6 @@ const getNearbyPosts = async (req, res) => { // Make function async
                 WHERE p.admin_dong = ?
                 ORDER BY p.created_at DESC
             `).all(userAdminDong);
-        }
-
-        // 3. If no posts are found in the same administrative dong, or if admin dong lookup failed,
-        // fall back to the radius-based search (all posts then filter)
-        if (posts.length === 0) {
-            const allPosts = db.prepare(`
-                SELECT
-                    p.id,
-                    p.content,
-                    p.image_url,
-                    p.lat,
-                    p.lon,
-                    p.created_at,
-                    p.admin_dong,
-                    u.nickname
-                FROM posts p
-                JOIN users u ON p.user_id = u.id
-                ORDER BY p.created_at DESC
-            `).all();
-
-            posts = allPosts.filter(post =>
-                isWithinRadius(userLocation, { lat: post.lat, lon: post.lon })
-            );
         }
 
         res.json({
