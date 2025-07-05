@@ -1,6 +1,6 @@
 // src/utils/geoUtils.js
-import axios from 'axios';
-import 'dotenv/config'; // Load environment variables from .env file using ES module syntax
+const axios = require('axios'); // import 대신 require 사용
+require('dotenv').config(); // ES 모듈 방식의 import 'dotenv/config' 대신 CommonJS 방식 사용
 
 /**
  * Checks if a location (e.g., a post) is within a defined rectangular map viewport.
@@ -14,7 +14,7 @@ import 'dotenv/config'; // Load environment variables from .env file using ES mo
  * - deltaLon: The 'width' of the viewport in degrees longitude (maxLon - minLon).
  * @returns {boolean} - True if the location is within the viewport, false otherwise.
  */
-export function isWithinMapViewport(location, viewport) { // 'export' 키워드 추가
+function isWithinMapViewport(location, viewport) { // export 키워드 제거
     const { centerLat, centerLon, deltaLat, deltaLon } = viewport;
 
     // 필수 파라미터 체크
@@ -49,7 +49,7 @@ export function isWithinMapViewport(location, viewport) { // 'export' 키워드 
 
 
 // --- Configuration from .env ---
-const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name for clarity
+const KAKAO_REST_API_KEY = process.env.REST_API_KEY;
 
 /**
  * Retrieves the administrative dong address for a given longitude and latitude using Kakao API.
@@ -57,7 +57,7 @@ const KAKAO_REST_API_KEY = process.env.REST_API_KEY; // Use a more specific name
  * @param {number} latitude - The latitude of the location.
  * @returns {Promise<string>} A promise that resolves to the administrative dong address or an error message.
  */
-export async function getAdminDongAddress(longitude, latitude) { // 'export' 키워드 추가
+async function getAdminDongAddress(longitude, latitude) { // export 키워드 제거
     if (!KAKAO_REST_API_KEY) {
         console.error("Error: Kakao REST API Key (REST_API_KEY) is not defined in your .env file.");
         return "API 키가 설정되지 않았습니다.";
@@ -91,5 +91,9 @@ export async function getAdminDongAddress(longitude, latitude) { // 'export' 키
     }
 }
 
-// CommonJS 방식의 module.exports는 제거합니다.
-// 대신 각 함수 앞에 'export' 키워드를 붙여 ES 모듈 방식으로 내보냅니다.
+// CommonJS 방식으로 함수들을 내보냅니다.
+module.exports = {
+    isWithinMapViewport, // isWithinMapViewport도 내보냅니다.
+    getAdminDongAddress,
+};
+
