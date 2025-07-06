@@ -21,7 +21,6 @@ function connectDb() {
 }
 
 function initializeDb() {
-    // users 테이블 생성: id를 TEXT 타입으로 변경, district 추가
     const createUsersTableSql = `
         CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -34,22 +33,23 @@ function initializeDb() {
     `;
     db.exec(createUsersTableSql);
 
-    // posts 테이블 생성: id와 user_id를 TEXT 타입으로 변경, district 추가
     const createPostsTableSql = `
         CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
             content TEXT NOT NULL,
             image_url TEXT,
             lat REAL NOT NULL,
             lon REAL NOT NULL,
-            admin_dong TEXT,
+            admin_dong TEXT NOT NULL,
+            upper_admin_dong TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
     `;
     db.exec(createPostsTableSql);
-    console.log('Database tables (users, posts) ensured with TEXT IDs and district.');
+    console.log('Database tables (users, posts) ensured.');
 }
 
 function getDb() {

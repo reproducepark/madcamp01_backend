@@ -4,3 +4,4 @@ test/test.png
 .env
 node_modules/
 test/downloads
+public/.DS_Store

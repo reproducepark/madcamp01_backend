@@ -52,15 +52,15 @@ function isWithinMapViewport(location, viewport) { // export 키워드 제거
 const KAKAO_REST_API_KEY = process.env.REST_API_KEY;
 
 /**
- * Retrieves the administrative dong address for a given longitude and latitude using Kakao API.
+ * Internal helper function to call Kakao API and retrieve region data.
  * @param {number} longitude - The longitude of the location.
  * @param {number} latitude - The latitude of the location.
- * @returns {Promise<string>} A promise that resolves to the administrative dong address or an error message.
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of document objects from the Kakao API response, or null if an error occurs.
  */
-async function getAdminDongAddress(longitude, latitude) { // export 키워드 제거
+async function fetchKakaoRegionData(longitude, latitude) {
     if (!KAKAO_REST_API_KEY) {
         console.error("Error: Kakao REST API Key (REST_API_KEY) is not defined in your .env file.");
-        return "API 키가 설정되지 않았습니다.";
+        return null; // Return null to indicate an error or missing key
     }
 
     const url = `https://dapi.kakao.com/v2/local/geo/coord2regioncode.json`;
@@ -74,26 +74,71 @@ async function getAdminDongAddress(longitude, latitude) { // export 키워드 �
                 y: latitude
             }
         });
-
-        const documents = response.data.documents;
-
-        // Find the administrative dong (region_type 'H')
-        const adminDong = documents.find(doc => doc.region_type === 'H');
-
-        if (adminDong) {
-            return adminDong.address_name;
-        } else {
-            return "행정동 주소를 찾을 수 없습니다.";
-        }
+        return response.data.documents;
     } catch (error) {
         console.error("Error calling Kakao API:", error.message);
-        return "API 호출 중 오류가 발생했습니다.";
+        return null; // Return null on API error
+    }
+}
+
+/**
+ * Retrieves the administrative dong address for a given longitude and latitude using Kakao API.
+ * @param {number} longitude - The longitude of the location.
+ * @param {number} latitude - The latitude of the location.
+ * @returns {Promise<string>} A promise that resolves to the administrative dong address or an error message.
+ */
+async function getAdminDongAddress(longitude, latitude) {
+    const documents = await fetchKakaoRegionData(longitude, latitude);
+
+    if (documents === null) {
+        return "API 호출 중 오류가 발생했거나 API 키가 설정되지 않았습니다.";
+    }
+
+    // Find the administrative dong (region_type 'H')
+    const adminDong = documents.find(doc => doc.region_type === 'H');
+
+    if (adminDong) {
+        return adminDong.address_name;
+    } else {
+        return "행정동 주소를 찾을 수 없습니다.";
+    }
+}
+
+/**
+ * Retrieves the combined upper administrative dong address (region_1depth_name + region_2depth_name)
+ * for a given longitude and latitude using Kakao API.
+ * @param {number} longitude - The longitude of the location.
+ * @param {number} latitude - The latitude of the location.
+ * @returns {Promise<string>} A promise that resolves to the combined upper administrative dong address or an error message.
+ */
+async function getUpperAdminDongAddress(longitude, latitude) {
+    const documents = await fetchKakaoRegionData(longitude, latitude);
+
+    if (documents === null) {
+        return "API 호출 중 오류가 발생했거나 API 키가 설정되지 않았습니다.";
+    }
+
+    // You can choose to use either 'B' (legal) or 'H' (administrative) region type here,
+    // depending on which upper level address makes more sense for your use case.
+    // For consistency with getAdminDongAddress's focus on administrative, I'll use 'H'.
+    const adminRegion = documents.find(doc => doc.region_type === 'H');
+
+    if (adminRegion) {
+        return `${adminRegion.region_1depth_name} ${adminRegion.region_2depth_name}`;
+    } else {
+        // Fallback to 'B' if 'H' isn't found, or return an error
+        const legalRegion = documents.find(doc => doc.region_type === 'B');
+        if (legalRegion) {
+            return `${legalRegion.region_1depth_name} ${legalRegion.region_2depth_name}`;
+        }
+        return "상위 행정동 주소를 찾을 수 없습니다.";
     }
 }
 
 // CommonJS 방식으로 함수들을 내보냅니다.
 module.exports = {
-    isWithinMapViewport, // isWithinMapViewport도 내보냅니다.
+    isWithinMapViewport,
     getAdminDongAddress,
+    getUpperAdminDongAddress
 };
 

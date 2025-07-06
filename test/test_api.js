@@ -89,14 +89,22 @@ async function createPostWithImage(userId, postData, imagePath) {
             headers: { ...formData.getHeaders() }
         });
 
-        const { content: createdContent, imageUrl: createdImageUrl, adminDong: createdAdminDong } = response.data;
+        const {
+            content: createdContent,
+            imageUrl: createdImageUrl,
+            adminDong: createdAdminDong,
+            upperAdminDong: createdUpperAdminDong // <--- 이 부분 추가
+        } = response.data;
+
         console.log(`작성된 글 내용 확인: ${createdContent}`);
         console.log(`작성된 이미지 URL 확인: ${createdImageUrl}`);
         console.log(`작성된 글의 행정동 확인: ${createdAdminDong}`);
+        console.log(`작성된 글의 상위 행정동 확인: ${createdUpperAdminDong}`); // <--- 이 부분 추가
 
         assert.strictEqual(createdContent, postData.content, '글 내용이 일치해야 합니다.');
         assert.ok(createdImageUrl, '이미지 URL이 존재해야 합니다.');
         assert.ok(createdAdminDong, '작성된 글에 행정동이 존재해야 합니다.');
+        assert.ok(createdUpperAdminDong, '작성된 글에 상위 행정동이 존재해야 합니다.'); // <--- 이 부분 추가
 
         return response.data;
     } catch (error) {
