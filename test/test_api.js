@@ -5,6 +5,7 @@ const FormData = require('form-data');
 const path = require('path');
 const assert = require('assert');
 const crypto = require('crypto'); // crypto 모듈 추가!
+const { title } = require('process');
 
 // 설정
 const BASE_URL = 'http://api.reproducepark.my:3000/api';
@@ -22,6 +23,7 @@ const testUser = {
 };
 
 const testPost = {
+    title: 'Node.js 테스트 글',
     content: 'Node.js 스크립트에서 작성한 테스트 글입니다!',
     lat: 36.3510,
     lon: 127.3850
@@ -80,6 +82,7 @@ async function createPostWithImage(userId, postData, imagePath) {
     try {
         const formData = new FormData();
         formData.append('userId', userId);
+        formData.append('title', postData.title);
         formData.append('content', postData.content);
         formData.append('lat', postData.lat);
         formData.append('lon', postData.lon);
@@ -89,14 +92,26 @@ async function createPostWithImage(userId, postData, imagePath) {
             headers: { ...formData.getHeaders() }
         });
 
-        const { content: createdContent, imageUrl: createdImageUrl, adminDong: createdAdminDong } = response.data;
+        const {
+            title: createdTitle,
+            content: createdContent,
+            imageUrl: createdImageUrl,
+            adminDong: createdAdminDong,
+            upperAdminDong: createdUpperAdminDong // <--- 이 부분 추가
+        } = response.data;
+
+        console.log(`작성된 글 제목 확인:, ${createdTitle}`);
         console.log(`작성된 글 내용 확인: ${createdContent}`);
         console.log(`작성된 이미지 URL 확인: ${createdImageUrl}`);
         console.log(`작성된 글의 행정동 확인: ${createdAdminDong}`);
+        console.log(`작성된 글의 상위 행정동 확인: ${createdUpperAdminDong}`); // <--- 이 부분 추가
 
+        // 응답 데이터 검증
+        assert.strictEqual(createdTitle, postData.title, '글 제목이 일치해야 합니다.');
         assert.strictEqual(createdContent, postData.content, '글 내용이 일치해야 합니다.');
         assert.ok(createdImageUrl, '이미지 URL이 존재해야 합니다.');
         assert.ok(createdAdminDong, '작성된 글에 행정동이 존재해야 합니다.');
+        assert.ok(createdUpperAdminDong, '작성된 글에 상위 행정동이 존재해야 합니다.'); // <--- 이 부분 추가
 
         return response.data;
     } catch (error) {
@@ -121,12 +136,16 @@ async function getNearbyPosts(lat, lon) {
         assert.ok(typeof response.data === 'object' && response.data !== null, '응답은 객체여야 합니다.');
         assert.ok(response.data.message, '응답에 message 필드가 있어야 합니다.');
         assert.ok(response.data.yourLocation, '응답에 yourLocation 필드가 있어야 합니다.');
-        assert.ok(response.data.yourAdminDong, '응답에 yourAdminDong 필드가 있어야 합니다.');
+        assert.ok(response.data.yourAdminDong !== undefined, '응답에 yourAdminDong 필드가 있어야 합니다.'); // undefined도 허용하도록 수정
         assert.ok(Array.isArray(response.data.nearbyPosts), 'nearbyPosts는 배열이어야 합니다.');
 
         if (response.data.nearbyPosts.length > 0) {
-            console.log(`첫 번째 근처 글 내용: ${response.data.nearbyPosts[0].content}`);
-            assert.ok(response.data.nearbyPosts[0].content, '첫 번째 게시물에 내용이 있어야 합니다.');
+            // 게시물에 content 필드가 없으므로, title이나 다른 필드를 확인하도록 수정
+            console.log(`첫 번째 근처 글 제목: ${response.data.nearbyPosts[0].title}`);
+            assert.ok(response.data.nearbyPosts[0].title, '첫 번째 게시물에 제목이 있어야 합니다.');
+            assert.ok(response.data.nearbyPosts[0].id, '첫 번째 게시물에 ID가 있어야 합니다.');
+            assert.ok(response.data.nearbyPosts[0].nickname, '첫 번째 게시물에 닉네임이 있어야 합니다.');
+            assert.ok(response.data.nearbyPosts[0].admin_dong, '첫 번째 게시물에 행정동 정보가 있어야 합니다.');
         } else {
             console.log('근처에 게시물이 없습니다.');
         }

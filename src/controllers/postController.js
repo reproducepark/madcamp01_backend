@@ -1,6 +1,6 @@
 // src/controllers/postController.js
 const { getDb } = require('../config/db');
-const { isWithinMapViewport, getAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
+const { isWithinMapViewport, getAdminDongAddress, getUpperAdminDongAddress } = require('../utils/geoUtils'); // Import getAdminDongAddress
 require('dotenv').config();
 
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
@@ -8,16 +8,19 @@ const UPLOAD_DIR_PUBLIC_PATH = `http://${SERVER_HOST || localhost}:${process.env
 
 
 // 새 글 작성 (이미지 포함)
-const createPost = async (req, res) => { // Make function async
-    const { userId, content } = req.body;
+const createPost = async (req, res) => {
+    // Destructure title from req.body as it's now a required field
+    const { userId, content, title } = req.body;
     const lat = parseFloat(req.body.lat);
     const lon = parseFloat(req.body.lon);
     let imageUrl = null;
     let adminDong = null; // To store the administrative dong
+    let upperAdminDong = null; // To store the upper administrative dong (e.g., Si/Gu)
 
-    if (!userId || !content || typeof lat !== 'number' || typeof lon !== 'number') {
-        console.log('Missing required fields:', { userId, content, lat, lon });
-        return res.status(400).json({ message: 'User ID, content, latitude, and longitude are required.' });
+    // Validate all required fields, including the new 'title'
+    if (!userId || !content || !title || typeof lat !== 'number' || typeof lon !== 'number') {
+        console.log('Missing required fields:', { userId, content, title, lat, lon });
+        return res.status(400).json({ message: 'User ID, title, content, latitude, and longitude are required.' });
     }
 
     if (req.file) {
@@ -26,7 +29,11 @@ const createPost = async (req, res) => { // Make function async
 
     try {
         // Get the administrative dong for the post's location
-        adminDong = await getAdminDongAddress(lon, lat); // getAdminDongAddress expects (longitude, latitude)
+        // getAdminDongAddress expects (longitude, latitude)
+        adminDong = await getAdminDongAddress(lon, lat);
+
+        // Get the upper administrative dong for the post's location
+        upperAdminDong = await getUpperAdminDongAddress(lon, lat);
 
         const db = getDb();
 
@@ -36,20 +43,24 @@ const createPost = async (req, res) => { // Make function async
             return res.status(404).json({ message: 'User not found.' });
         }
 
-        // Insert admin_dong into the posts table
-        // *** IMPORTANT: Ensure your 'posts' table has an 'admin_dong' column (e.g., TEXT) ***
-        const stmt = db.prepare('INSERT INTO posts (user_id, content, image_url, lat, lon, admin_dong) VALUES (?, ?, ?, ?, ?, ?)');
-        const info = stmt.run(userId, content, imageUrl, lat, lon, adminDong);
+        // Insert data into the posts table, including 'title' and 'upper_admin_dong'
+        // Ensure your 'posts' table has 'title' (TEXT NOT NULL) and 'upper_admin_dong' (TEXT NOT NULL) columns
+        const stmt = db.prepare(
+            'INSERT INTO posts (user_id, title, content, image_url, lat, lon, admin_dong, upper_admin_dong) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        const info = stmt.run(userId, title, content, imageUrl, lat, lon, adminDong, upperAdminDong);
 
         res.status(201).json({
             message: 'Post created successfully!',
             postId: info.lastInsertRowid,
             userId,
+            title,
             content,
             imageUrl,
             lat,
             lon,
-            adminDong // Include adminDong in the response
+            adminDong,
+            upperAdminDong
         });
     } catch (error) {
         console.error('Error creating post:', error.message);
@@ -80,10 +91,8 @@ const getNearbyPosts = async (req, res) => { // Make function async
             posts = db.prepare(`
                 SELECT
                     p.id,
-                    p.content,
+                    p.title,
                     p.image_url,
-                    p.lat,
-                    p.lon,
                     p.created_at,
                     p.admin_dong,
                     u.nickname
@@ -147,6 +156,7 @@ const getPostsInViewport = async (req, res) => {
         const allPosts = db.prepare(`
             SELECT
                 p.id,
+                p.title,
                 p.content,
                 p.image_url,
                 p.lat,
