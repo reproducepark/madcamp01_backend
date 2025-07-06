@@ -156,6 +156,7 @@ const getPostsInViewport = async (req, res) => {
         const allPosts = db.prepare(`
             SELECT
                 p.id,
+                p.title,
                 p.content,
                 p.image_url,
                 p.lat,
