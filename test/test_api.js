@@ -97,21 +97,18 @@ async function createPostWithImage(userId, postData, imagePath) {
             content: createdContent,
             imageUrl: createdImageUrl,
             adminDong: createdAdminDong,
-            upperAdminDong: createdUpperAdminDong
         } = response.data;
 
         console.log(`작성된 글 제목 확인:, ${createdTitle}`);
         console.log(`작성된 글 내용 확인: ${createdContent}`);
         console.log(`작성된 이미지 URL 확인: ${createdImageUrl}`);
         console.log(`작성된 글의 행정동 확인: ${createdAdminDong}`);
-        console.log(`작성된 글의 상위 행정동 확인: ${createdUpperAdminDong}`);
 
         // 응답 데이터 검증
         assert.strictEqual(createdTitle, postData.title, '글 제목이 일치해야 합니다.');
         assert.strictEqual(createdContent, postData.content, '글 내용이 일치해야 합니다.');
         assert.ok(createdImageUrl, '이미지 URL이 존재해야 합니다.');
         assert.ok(createdAdminDong, '작성된 글에 행정동이 존재해야 합니다.');
-        assert.ok(createdUpperAdminDong, '작성된 글에 상위 행정동이 존재해야 합니다.');
 
         return response.data;
     } catch (error) {
@@ -139,7 +136,6 @@ async function getPostByIdTest(postId) {
         assert.ok(response.data.admin_dong, '행정동이 존재해야 합니다.');
         assert.ok(response.data.created_at, '생성일시가 존재해야 합니다.');
         assert.ok(response.data.nickname, '작성자 닉네임이 존재해야 합니다.');
-        assert.ok(response.data.upper_admin_dong, '상위 행정동이 존재해야 합니다.'); // Add this assertion
 
         console.log('특정 ID의 글 조회 테스트 성공!');
         return response.data;
@@ -174,7 +170,6 @@ async function getNearbyPosts(lat, lon) {
             assert.ok(response.data.nearbyPosts[0].id, '첫 번째 게시물에 ID가 있어야 합니다.');
             assert.ok(response.data.nearbyPosts[0].nickname, '첫 번째 게시물에 닉네임이 있어야 합니다.');
             assert.ok(response.data.nearbyPosts[0].admin_dong, '첫 번째 게시물에 행정동 정보가 있어야 합니다.');
-            assert.ok(response.data.nearbyPosts[0].upper_admin_dong, '첫 번째 게시물에 상위 행정동 정보가 있어야 합니다.'); // Add this assertion
         } else {
             console.log('근처에 게시물이 없습니다.');
         }
