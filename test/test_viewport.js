@@ -52,13 +52,15 @@ async function onboardTestUser() {
 /**
  * 지정된 위치에 하나의 테스트 게시물을 생성합니다.
  * @param {number} userId - 게시물을 작성할 사용자 ID.
- * @param {object} postData - 게시물 데이터 { content, lat, lon }.
+ * @param {object} postData - 게시물 데이터 { title, content, lat, lon }.
  * @returns {Promise<object>} 생성된 게시물 정보.
  */
 async function createPost(userId, postData) {
+    console.log(`\n--- '${postData.title}' 게시물 생성 테스트 ---`); // 로그 추가
     try {
         const formData = new FormData();
         formData.append('userId', userId);
+        formData.append('title', postData.title); // <-- title 필드 추가
         formData.append('content', postData.content);
         formData.append('lat', postData.lat);
         formData.append('lon', postData.lon);
@@ -73,10 +75,20 @@ async function createPost(userId, postData) {
             headers: { ...formData.getHeaders() }
         });
 
+        // 게시물 생성 응답 필드 검증 추가
         assert.ok(response.data.postId, '게시물 ID가 반환되어야 합니다.');
+        assert.strictEqual(response.data.userId, userId, '생성된 게시물의 userId가 요청과 일치해야 합니다.');
+        assert.strictEqual(response.data.title, postData.title, '생성된 게시물의 title이 요청과 일치해야 합니다.');
+        assert.strictEqual(response.data.content, postData.content, '생성된 게시물의 content가 요청과 일치해야 합니다.');
+        assert.ok(typeof response.data.lat === 'number', '생성된 게시물의 lat이 숫자여야 합니다.');
+        assert.ok(typeof response.data.lon === 'number', '생성된 게시물의 lon이 숫자여야 합니다.');
+        assert.ok(response.data.adminDong, '생성된 게시물에 adminDong이 있어야 합니다.');
+        assert.ok(response.data.upperAdminDong, '생성된 게시물에 upperAdminDong이 있어야 합니다.');
+
+        console.log(`'${postData.title}' 게시물 생성 성공 (ID: ${response.data.postId})`);
         return response.data;
     } catch (error) {
-        handleApiError(error, `'${postData.content}' 게시물 생성`);
+        handleApiError(error, `'${postData.title}' 게시물 생성`);
     }
 }
 
@@ -88,9 +100,7 @@ async function createPost(userId, postData) {
 async function getPostsInViewport(viewport) {
     console.log('\n--- 4. Viewport로 게시물 조회 테스트 ---');
     try {
-        // --- 이 부분이 수정되었습니다 ---
         const response = await axios.get(`${BASE_URL}/posts/nearbyviewport`, { params: viewport });
-        // -----------------------------
         console.log('조회된 게시물:', response.data);
         console.log(`Viewport 조회 성공. ${response.data.postsInViewport.length}개의 게시물을 찾았습니다.`);
         return response.data;
@@ -131,7 +141,8 @@ async function runViewportTest() {
         };
         
         const post = await createPost(userId, {
-            content: `강남역 근처 테스트 게시물 #${i}`,
+            title: `테스트 게시물 제목 #${i}`, // <-- title 추가
+            content: `강남역 근처 테스트 게시물 내용 #${i}`, // content로 변경
             lat: newLocation.lat,
             lon: newLocation.lon
         });

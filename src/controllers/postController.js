@@ -91,10 +91,8 @@ const getNearbyPosts = async (req, res) => { // Make function async
             posts = db.prepare(`
                 SELECT
                     p.id,
-                    p.content,
+                    p.title,
                     p.image_url,
-                    p.lat,
-                    p.lon,
                     p.created_at,
                     p.admin_dong,
                     u.nickname
