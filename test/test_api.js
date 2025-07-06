@@ -120,13 +120,41 @@ async function createPostWithImage(userId, postData, imagePath) {
 }
 
 /**
+ * 특정 ID의 글을 조회합니다.
+ * @param {number} postId - 조회할 글의 ID.
+ * @returns {Promise<object>} - API 응답 데이터.
+ */
+async function getPostByIdTest(postId) {
+    console.log(`\n--- 3. 특정 ID의 글 조회 테스트 (ID: ${postId}) ---`);
+    try {
+        const response = await axios.get(`${BASE_URL}/posts/${postId}`);
+        console.log('특정 글 조회 응답:', JSON.stringify(response.data, null, 2));
+
+        // 응답 데이터 검증
+        assert.ok(response.data.id, '글 ID가 존재해야 합니다.');
+        assert.strictEqual(response.data.id, postId, '조회된 글의 ID가 요청한 ID와 일치해야 합니다.');
+        assert.ok(response.data.user_id, '사용자 ID가 존재해야 합니다.');
+        assert.ok(response.data.title, '글 제목이 존재해야 합니다.');
+        assert.ok(response.data.content, '글 내용이 존재해야 합니다.');
+        assert.ok(response.data.admin_dong, '행정동이 존재해야 합니다.');
+        assert.ok(response.data.created_at, '생성일시가 존재해야 합니다.');
+        assert.ok(response.data.nickname, '작성자 닉네임이 존재해야 합니다.');
+
+        console.log('특정 ID의 글 조회 테스트 성공!');
+        return response.data;
+    } catch (error) {
+        handleApiError(error);
+    }
+}
+
+/**
  * 현재 위치를 기반으로 근처 동네 글을 조회합니다.
  * @param {number} lat - 현재 위도.
  * @param {number} lon - 현재 경도.
  * @returns {Promise<object>} - API 응답 데이터.
  */
 async function getNearbyPosts(lat, lon) {
-    console.log('\n--- 3. 근처 동네 글 조회 테스트 ---');
+    console.log('\n--- 4. 근처 동네 글 조회 테스트 ---');
     try {
         const response = await axios.get(`${BASE_URL}/posts/nearby`, {
             params: { currentLat: lat, currentLon: lon }
@@ -164,7 +192,7 @@ async function getNearbyPosts(lat, lon) {
  * @returns {Promise<object>} - API 응답 데이터.
  */
 async function updateUserLocation(userId, newLat, newLon) {
-    console.log('\n--- 4. 사용자 위치 업데이트 테스트 ---');
+    console.log('\n--- 5. 사용자 위치 업데이트 테스트 ---');
     try {
         const response = await axios.post(`${BASE_URL}/auth/update-location`, {
             userId: userId,
@@ -213,7 +241,7 @@ function calculateFileMD5(filePath) {
  * @returns {Promise<string>} - 다운로드된 파일의 전체 경로.
  */
 async function downloadImageAndVerifyMD5(imageUrl, outputDir, expectedMd5) {
-    console.log('\n--- 5. 이미지 다운로드 및 MD5 검증 테스트 ---');
+    console.log('\n--- 6. 이미지 다운로드 및 MD5 검증 테스트 ---');
     try {
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
@@ -267,6 +295,7 @@ async function downloadImageAndVerifyMD5(imageUrl, outputDir, expectedMd5) {
 
 async function runAllTests() {
     let userId = null;
+    let createdPostId = null; // 새로 생성된 postId를 저장할 변수
     let createdImageUrl = null;
 
     console.log('--- API 테스트 시작 ---');
@@ -285,15 +314,23 @@ async function runAllTests() {
 
         // 테스트 2: 이미지를 포함한 글 작성
         const postResult = await createPostWithImage(userId, testPost, TEST_IMAGE_PATH);
+        createdPostId = postResult.postId; // 생성된 postId 저장
         createdImageUrl = postResult.imageUrl;
 
-        // 테스트 3: 근처 글 조회
+        // 테스트 3: 특정 ID의 글 조회
+        if (createdPostId) {
+            await getPostByIdTest(createdPostId);
+        } else {
+            console.warn('생성된 글 ID가 없어 특정 ID의 글 조회 테스트를 건너뜁니다.');
+        }
+
+        // 테스트 4: 근처 글 조회
         await getNearbyPosts(testPost.lat, testPost.lon);
 
-        // 테스트 4: 사용자 위치 업데이트
+        // 테스트 5: 사용자 위치 업데이트
         await updateUserLocation(userId, 36.3000, 127.3780);
 
-        // 테스트 5: 업로드된 이미지 다운로드 및 MD5 검증
+        // 테스트 6: 업로드된 이미지 다운로드 및 MD5 검증
         if (createdImageUrl) {
             const fullImageUrl = `${UPLOAD_BASE_URL}/${path.basename(new URL(createdImageUrl).pathname)}`;
             await downloadImageAndVerifyMD5(fullImageUrl, DOWNLOAD_DIR, ORIGINAL_IMAGE_MD5); // MD5 값을 인자로 전달

@@ -6,6 +6,41 @@ require('dotenv').config();
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
 const UPLOAD_DIR_PUBLIC_PATH = `http://${SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
 
+// 특정 ID의 Post를 가져오는 함수
+const getPostById = async (req, res) => {
+    const { id } = req.params; // URL 파라미터에서 id를 추출
+
+    try {
+        const db = getDb();
+
+        // 게시글 정보와 작성자 닉네임을 함께 조회
+        const sql = `
+            SELECT
+                p.id,
+                p.user_id,
+                p.title,
+                p.content,
+                p.image_url,
+                p.admin_dong,
+                p.created_at,
+                u.nickname
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.id = ?
+        `;
+
+        const post = db.prepare(sql).get(id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        res.status(200).json(post); // Post 데이터를 JSON 형태로 응답
+    } catch (error) {
+        console.error('Error fetching post by ID:', error.message);
+        res.status(500).json({ message: 'Error fetching post.', error: error.message });
+    }
+};
 
 // 새 글 작성 (이미지 포함)
 const createPost = async (req, res) => {
@@ -187,6 +222,7 @@ const getPostsInViewport = async (req, res) => {
 };
 
 module.exports = {
+    getPostById,
     createPost,
     getNearbyPosts,
     getPostsInViewport
