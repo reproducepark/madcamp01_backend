@@ -6,6 +6,41 @@ require('dotenv').config();
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
 const UPLOAD_DIR_PUBLIC_PATH = `http://${SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
 
+// 특정 ID의 Post를 가져오는 함수
+const getPostById = async (req, res) => {
+    const { id } = req.params; // URL 파라미터에서 id를 추출
+
+    try {
+        const db = getDb();
+
+        // 게시글 정보와 작성자 닉네임을 함께 조회
+        const sql = `
+            SELECT
+                p.id,
+                p.user_id,
+                p.title,
+                p.content,
+                p.image_url,
+                p.admin_dong,
+                p.created_at,
+                u.nickname
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.id = ?
+        `;
+
+        const post = db.prepare(sql).get(id);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        res.status(200).json(post); // Post 데이터를 JSON 형태로 응답
+    } catch (error) {
+        console.error('Error fetching post by ID:', error.message);
+        res.status(500).json({ message: 'Error fetching post.', error: error.message });
+    }
+};
 
 // 새 글 작성 (이미지 포함)
 const createPost = async (req, res) => {
@@ -117,6 +152,67 @@ const getNearbyPosts = async (req, res) => { // Make function async
 };
 
 /**
+ * Retrieves posts from the same upper administrative dong as the user's current location.
+ *
+ * @param {object} req - The Express request object, expecting `currentLat` and `currentLon` in `req.query`.
+ * @param {object} res - The Express response object.
+ */
+const getNearbyPostsUpper = async (req, res) => {
+    const { currentLat, currentLon } = req.query;
+
+    // Validate input coordinates
+    if (typeof parseFloat(currentLat) !== 'number' || typeof parseFloat(currentLon) !== 'number') {
+        return res.status(400).json({ message: 'Valid currentLat and currentLon are required query parameters.' });
+    }
+
+    const userLocation = { lat: parseFloat(currentLat), lon: parseFloat(currentLon) };
+
+    try {
+        const db = getDb(); // Get your database instance
+
+        // 1. Get the upper administrative dong for the user's current location
+        const userUpperAdminDong = await getUpperAdminDongAddress(userLocation.lon, userLocation.lat);
+
+        let posts = [];
+        let message = `Posts for your upper neighborhood (${userUpperAdminDong || 'unknown'})`;
+
+        // 2. Fetch posts from the same upper administrative dong if found
+        if (userUpperAdminDong &&
+            userUpperAdminDong !== "API 호출 중 오류가 발생했거나 API 키가 설정되지 않았습니다." &&
+            userUpperAdminDong !== "상위 행정동 주소를 찾을 수 없습니다.") {
+            posts = db.prepare(`
+                SELECT
+                    p.id,
+                    p.title,
+                    p.image_url,
+                    p.created_at,
+                    p.admin_dong,
+                    p.upper_admin_dong,
+                    u.nickname
+                FROM posts p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.upper_admin_dong = ?
+                ORDER BY p.created_at DESC
+            `).all(userUpperAdminDong);
+        } else {
+            // Adjust message if upper admin dong could not be determined
+            message = `Could not determine your upper neighborhood. ${userUpperAdminDong}`;
+        }
+
+        res.json({
+            message: message,
+            yourLocation: userLocation,
+            yourUpperAdminDong: userUpperAdminDong,
+            nearbyPosts: posts
+        });
+
+    } catch (error) {
+        console.error('Error fetching nearby posts by upper administrative dong:', error.message);
+        res.status(500).json({ message: 'Error fetching nearby posts.', error: error.message });
+    }
+};
+
+/**
  * Retrieves posts within a specified rectangular map viewport.
  * @param {object} req - The request object, expecting query parameters:
  * - centerLat: Latitude of the center of the viewport.
@@ -187,7 +283,9 @@ const getPostsInViewport = async (req, res) => {
 };
 
 module.exports = {
+    getPostById,
     createPost,
     getNearbyPosts,
-    getPostsInViewport
+    getPostsInViewport,
+    getNearbyPostsUpper
 };
