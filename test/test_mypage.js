@@ -12,8 +12,8 @@ const TEST_IMAGE_PATH = path.join(__dirname, 'test.png'); // 이미지가 필요
 // 테스트 데이터
 const testUserForPostsByUserId = {
     nickname: 'posts_by_user_test_user_' + Date.now(),
-    lat: 36.3500,
-    lon: 125.3800
+    lat: 35.961664,
+    lon: 127.087993
 };
 
 // --- API 클라이언트 함수들 (기존 함수 재사용 또는 필요한 경우 복사) ---
