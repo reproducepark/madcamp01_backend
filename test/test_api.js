@@ -8,8 +8,8 @@ const crypto = require('crypto');
 const { title } = require('process');
 
 // 설정
-const BASE_URL = 'http://api.reproducepark.my:3000/api';
-const UPLOAD_BASE_URL = 'http://api.reproducepark.my:3000/uploads';
+const BASE_URL = 'https://api.reproducepark.my/api';
+const UPLOAD_BASE_URL = 'https://api.reproducepark.my/uploads';
 const TEST_IMAGE_PATH = path.join(__dirname, 'test.png');
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 

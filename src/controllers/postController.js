@@ -4,7 +4,7 @@ const { isWithinMapViewport, getAdminDongAddress, getUpperAdminDongAddress } = r
 require('dotenv').config();
 
 const SERVER_HOST = process.env.SERVER_IP || `localhost`; // .env에서 서버 IP를 가져오고, 없으면 localhost 사용
-const UPLOAD_DIR_PUBLIC_PATH = `http://${SERVER_HOST || localhost}:${process.env.PORT || 3000}/uploads`;
+const UPLOAD_DIR_PUBLIC_PATH = `https://${SERVER_HOST || localhost}:${process.env.PORT || ''}/uploads`;
 
 // 특정 ID의 Post를 가져오는 함수
 const getPostById = async (req, res) => {
