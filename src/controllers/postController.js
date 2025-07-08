@@ -430,7 +430,7 @@ const getPostsByUserId = async (req, res) => {
         }
 
         res.status(200).json({
-            message: `Posts by user ID ${parsedUserId} retrieved successfully.`,
+            message: `Posts by user ID ${userId} retrieved successfully.`,
             posts: posts
         });
     } catch (error) {
