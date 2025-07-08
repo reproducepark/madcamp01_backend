@@ -293,10 +293,10 @@ const updatePost = async (req, res) => {
     const { id } = req.params; // 게시글 ID
     const { userId, title, content } = req.body; // userId는 게시글 작성자 검증용
 
-    if (req.body.image_url_delete_flag == true){
+    if (req.body.image_url_delete_flag === "true"){
         imageUrl = null; // 이미지 삭제 플래그가 true인 경우
     }
-    else if (req.body.image_url_update_flag == true){
+    else if (req.body.image_url_update_flag === "true"){
         if (req.file) {
             imageUrl = `${UPLOAD_DIR_PUBLIC_PATH}/${req.file.filename}`; // 새로운 이미지 파일이 업로드된 경우
         }

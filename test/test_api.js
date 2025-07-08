@@ -352,12 +352,12 @@ async function updatePostTest(postId, userId, updateData, imagePath = null) {
         if (updateData.title !== undefined) formData.append('title', updateData.title);
         if (updateData.content !== undefined) formData.append('content', updateData.content);
         if (updateData.image_url_delete_flag) {
-            formData.append('image_url_delete_flag', true);
+            formData.append('image_url_delete_flag', 'true');
         } else if (updateData.image_url_update_flag && imagePath) {
-            formData.append('image_url_update_flag', true);
+            formData.append('image_url_update_flag', 'true');
             formData.append('image', fs.createReadStream(imagePath));
         }
-
+        console.log('수정할 게시글 데이터:', formData);
         const response = await axios.put(`${BASE_URL}/posts/${postId}`, formData, {
             headers: { ...formData.getHeaders() }
         });
@@ -365,7 +365,7 @@ async function updatePostTest(postId, userId, updateData, imagePath = null) {
 
         assert.strictEqual(response.status, 200, '게시글 수정은 성공 시 200 상태 코드를 반환해야 합니다.');
         assert.strictEqual(response.data.message, 'Post updated successfully!', '성공 메시지가 일치해야 합니다.');
-        assert.strictEqual(response.data.postId, postId, '응답의 게시글 ID가 요청한 ID와 일치해야 합니다.');
+        assert.strictEqual(Number(response.data.postId), postId, '응답의 게시글 ID가 요청한 ID와 일치해야 합니다.');
 
         // 수정된 게시글을 다시 조회하여 내용이 업데이트되었는지 확인
         const updatedPost = await getPostByIdTest(postId);
