@@ -350,7 +350,7 @@ const updatePost = async (req, res) => {
 
     } catch (error) {
         console.error('Error updating post:', error.message);
-        res.status(500).json({ message: 'Error updating post.', error: error.message });
+        res.status(500).json({ message: 'Error updating post.', postId: -1, error: error.message });
     }
 };
 
@@ -393,7 +393,7 @@ const deletePost = async (req, res) => {
 
     } catch (error) {
         console.error('Error deleting post:', error.message);
-        res.status(500).json({ message: 'Error deleting post.', error: error.message });
+        res.status(500).json({ message: 'Error deleting post.', postId: -1, error: error.message });
     }
 };
 
