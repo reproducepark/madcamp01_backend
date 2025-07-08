@@ -423,7 +423,7 @@ const getPostsByUserId = async (req, res) => {
             ORDER BY p.created_at DESC
         `;
 
-        const posts = db.prepare(sql).all(parsedUserId);
+        const posts = db.prepare(sql).all(userId);
 
         if (posts.length === 0) {
             return res.status(404).json({ message: 'No posts found for this user ID.' });
