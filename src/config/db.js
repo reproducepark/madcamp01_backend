@@ -49,7 +49,34 @@ function initializeDb() {
         );
     `;
     db.exec(createPostsTableSql);
-    console.log('Database tables (users, posts) ensured.');
+
+    const createCommentsTableSql = `
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (post_id) REFERENCES posts(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    `;
+    db.exec(createCommentsTableSql);
+
+    const createLikesTableSql = `
+        CREATE TABLE IF NOT EXISTS likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            user_id TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (post_id, user_id),
+            FOREIGN KEY (post_id) REFERENCES posts(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    `;
+    db.exec(createLikesTableSql);
+
+    console.log('Database tables (users, posts, comments, likes) ensured.');
 }
 
 function getDb() {

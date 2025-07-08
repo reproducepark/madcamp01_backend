@@ -440,6 +440,303 @@ const getPostsByUserId = async (req, res) => {
 };
 
 
+/**
+ * 특정 게시글에 댓글을 작성합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 postId (req.params.postId)를,
+ * req.body에 userId, content를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const createComment = async (req, res) => {
+    const { postId } = req.params;
+    const { userId, content } = req.body;
+
+    if (!userId || !content) {
+        return res.status(400).json({ message: 'User ID and content are required for a comment.' });
+    }
+
+    try {
+        const db = getDb();
+
+        // 게시글 존재 여부 확인
+        const postExists = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+        if (!postExists) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        // 사용자 존재 여부 확인
+        const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+        if (!userExists) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const stmt = db.prepare('INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)');
+        const info = stmt.run(postId, userId, content);
+
+        res.status(201).json({
+            message: 'Comment created successfully!',
+            commentId: info.lastInsertRowid,
+            postId,
+            userId,
+            content
+        });
+    } catch (error) {
+        console.error('Error creating comment:', error.message);
+        res.status(500).json({ message: 'Error creating comment.', error: error.message });
+    }
+};
+
+/**
+ * 특정 게시글의 모든 댓글을 조회합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 postId (req.params.postId)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const getCommentsByPostId = async (req, res) => {
+    const { postId } = req.params;
+
+    try {
+        const db = getDb();
+
+        // 게시글 존재 여부 확인 (필수 아님, 댓글이 없더라도 빈 배열 반환 가능)
+        const postExists = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+        if (!postExists) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        // 게시글에 속한 댓글과 작성자 닉네임을 함께 조회
+        const sql = `
+            SELECT
+                c.id,
+                c.post_id,
+                c.user_id,
+                c.content,
+                c.created_at,
+                u.nickname
+            FROM comments c
+            JOIN users u ON c.user_id = u.id
+            WHERE c.post_id = ?
+            ORDER BY c.created_at ASC
+        `;
+        const comments = db.prepare(sql).all(postId);
+
+        res.status(200).json({
+            message: `Comments for post ID ${postId} retrieved successfully.`,
+            comments: comments
+        });
+    } catch (error) {
+        console.error('Error fetching comments by post ID:', error.message);
+        res.status(500).json({ message: 'Error fetching comments.', error: error.message });
+    }
+};
+
+/**
+ * 댓글을 수정합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 commentId (req.params.commentId)를,
+ * req.body에 userId (댓글 작성자 검증용), content를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const updateComment = async (req, res) => {
+    const { commentId } = req.params;
+    const { userId, content } = req.body;
+
+    if (!userId || !content) {
+        return res.status(400).json({ message: 'User ID and content are required to update a comment.' });
+    }
+
+    try {
+        const db = getDb();
+
+        // 댓글 존재 여부 및 작성자 확인
+        const existingComment = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(commentId);
+        if (!existingComment) {
+            return res.status(404).json({ message: 'Comment not found.' });
+        }
+        if (existingComment.user_id !== userId) {
+            return res.status(403).json({ message: 'You are not authorized to update this comment.' });
+        }
+
+        const stmt = db.prepare('UPDATE comments SET content = ? WHERE id = ?');
+        const info = stmt.run(content, commentId);
+
+        if (info.changes === 0) {
+            return res.status(400).json({ message: 'Comment not updated, possibly no changes or comment ID incorrect.' });
+        }
+
+        res.status(200).json({ message: 'Comment updated successfully!', commentId });
+    } catch (error) {
+        console.error('Error updating comment:', error.message);
+        res.status(500).json({ message: 'Error updating comment.', error: error.message });
+    }
+};
+
+/**
+ * 댓글을 삭제합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 commentId (req.params.commentId)를,
+ * req.body에 userId (댓글 작성자 검증용)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const deleteComment = async (req, res) => {
+    const { commentId } = req.params;
+    const { userId } = req.body; // 댓글 작성자 ID
+
+    if (!userId) {
+        return res.status(400).json({ message: 'User ID is required to delete a comment.' });
+    }
+
+    try {
+        const db = getDb();
+
+        // 댓글 존재 여부 및 작성자 확인
+        const existingComment = db.prepare('SELECT user_id FROM comments WHERE id = ?').get(commentId);
+        if (!existingComment) {
+            return res.status(404).json({ message: 'Comment not found.' });
+        }
+        if (existingComment.user_id !== userId) {
+            return res.status(403).json({ message: 'You are not authorized to delete this comment.' });
+        }
+
+        const stmt = db.prepare('DELETE FROM comments WHERE id = ?');
+        const info = stmt.run(commentId);
+
+        if (info.changes === 0) {
+            return res.status(400).json({ message: 'Comment not deleted, possibly comment ID incorrect.' });
+        }
+
+        res.status(200).json({ message: 'Comment deleted successfully!', commentId });
+    } catch (error) {
+        console.error('Error deleting comment:', error.message);
+        res.status(500).json({ message: 'Error deleting comment.', error: error.message });
+    }
+};
+
+// --- 좋아요 관련 컨트롤러 함수 ---
+
+/**
+ * 특정 게시글에 좋아요를 토글합니다 (좋아요 누르기/취소).
+ * @param {object} req - 요청 객체. URL 파라미터로 postId (req.params.postId)를,
+ * req.body에 userId를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const toggleLike = async (req, res) => {
+    const { postId } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+        return res.status(400).json({ message: 'User ID is required to toggle a like.' });
+    }
+
+    try {
+        const db = getDb();
+
+        // 게시글 존재 여부 확인
+        const postExists = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+        if (!postExists) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        // 사용자 존재 여부 확인
+        const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+        if (!userExists) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        // 이미 좋아요를 눌렀는지 확인
+        const existingLike = db.prepare('SELECT id FROM likes WHERE post_id = ? AND user_id = ?').get(postId, userId);
+
+        if (existingLike) {
+            // 이미 좋아요를 눌렀다면 좋아요 취소 (삭제)
+            const stmt = db.prepare('DELETE FROM likes WHERE post_id = ? AND user_id = ?');
+            const info = stmt.run(postId, userId);
+            if (info.changes > 0) {
+                res.status(200).json({ message: 'Like removed successfully.', liked: false });
+            } else {
+                res.status(400).json({ message: 'Like could not be removed.' });
+            }
+        } else {
+            // 좋아요를 누르지 않았다면 좋아요 추가
+            const stmt = db.prepare('INSERT INTO likes (post_id, user_id) VALUES (?, ?)');
+            const info = stmt.run(postId, userId);
+            if (info.lastInsertRowid) {
+                res.status(201).json({ message: 'Like added successfully!', liked: true });
+            } else {
+                res.status(400).json({ message: 'Like could not be added.' });
+            }
+        }
+    } catch (error) {
+        console.error('Error toggling like:', error.message);
+        res.status(500).json({ message: 'Error toggling like.', error: error.message });
+    }
+};
+
+/**
+ * 특정 게시글의 좋아요 수를 조회합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 postId (req.params.postId)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const getLikesCountByPostId = async (req, res) => {
+    const { postId } = req.params;
+
+    try {
+        const db = getDb();
+
+        // 게시글 존재 여부 확인 (선택 사항, 좋아요 수가 0일 수 있음)
+        const postExists = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+        if (!postExists) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        const sql = `SELECT COUNT(id) AS like_count FROM likes WHERE post_id = ?`;
+        const result = db.prepare(sql).get(postId);
+
+        res.status(200).json({
+            message: `Likes count for post ID ${postId} retrieved successfully.`,
+            postId: postId,
+            likeCount: result ? result.like_count : 0
+        });
+    } catch (error) {
+        console.error('Error fetching likes count:', error.message);
+        res.status(500).json({ message: 'Error fetching likes count.', error: error.message });
+    }
+};
+
+/**
+ * 특정 게시물에 대한 특정 사용자의 좋아요 상태를 확인합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 postId (req.params.postId), userId (req.params.userId)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const getLikeStatusForUser = async (req, res) => {
+    const { postId, userId } = req.params;
+
+    try {
+        const db = getDb();
+
+        // 게시글 존재 여부 확인
+        const postExists = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+        if (!postExists) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        // 사용자 존재 여부 확인
+        const userExists = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+        if (!userExists) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const sql = `SELECT id FROM likes WHERE post_id = ? AND user_id = ?`;
+        const result = db.prepare(sql).get(postId, userId);
+
+        res.status(200).json({
+            message: `Like status for post ID ${postId} by user ID ${userId} retrieved successfully.`,
+            postId: postId,
+            userId: userId,
+            liked: !!result // 결과가 있으면 true (좋아요 누름), 없으면 false (좋아요 안 누름)
+        });
+    } catch (error) {
+        console.error('Error fetching like status:', error.message);
+        res.status(500).json({ message: 'Error fetching like status.', error: error.message });
+    }
+};
+
+
 module.exports = {
     getPostById,
     createPost,
@@ -448,5 +745,12 @@ module.exports = {
     getNearbyPostsUpper,
     updatePost,
     deletePost,
-    getPostsByUserId
+    getPostsByUserId,
+    createComment,
+    getCommentsByPostId,
+    updateComment,
+    deleteComment,
+    toggleLike,
+    getLikesCountByPostId,
+    getLikeStatusForUser
 };
