@@ -397,6 +397,48 @@ const deletePost = async (req, res) => {
     }
 };
 
+/**
+ * 특정 user_id에 해당하는 모든 게시글을 조회합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 userId (req.params.userId)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const getPostsByUserId = async (req, res) => {
+    const { userId } = req.params; // URL 파라미터에서 userId를 추출
+
+    try {
+        const db = getDb();
+
+        // user_id에 해당하는 게시글들을 조회
+        const sql = `
+            SELECT
+                p.id,
+                p.title,
+                p.image_url,
+                p.created_at,
+                p.admin_dong,
+                u.nickname
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.user_id = ?
+            ORDER BY p.created_at DESC
+        `;
+
+        const posts = db.prepare(sql).all(parsedUserId);
+
+        if (posts.length === 0) {
+            return res.status(404).json({ message: 'No posts found for this user ID.' });
+        }
+
+        res.status(200).json({
+            message: `Posts by user ID ${parsedUserId} retrieved successfully.`,
+            posts: posts
+        });
+    } catch (error) {
+        console.error('Error fetching posts by user ID:', error.message);
+        res.status(500).json({ message: 'Error fetching posts.', error: error.message });
+    }
+};
+
 
 module.exports = {
     getPostById,
@@ -405,5 +447,6 @@ module.exports = {
     getPostsInViewport,
     getNearbyPostsUpper,
     updatePost,
-    deletePost
+    deletePost,
+    getPostsByUserId
 };
