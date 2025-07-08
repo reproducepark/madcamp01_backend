@@ -282,10 +282,128 @@ const getPostsInViewport = async (req, res) => {
     }
 };
 
+/**
+ * 게시글을 수정합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 게시글 ID (req.params.id)와
+ * req.body에 userId, title, content, lat, lon (선택적)을 포함합니다.
+ * req.file에는 새로운 이미지 파일이 있을 수 있습니다.
+ * @param {object} res - 응답 객체.
+ */
+const updatePost = async (req, res) => {
+    const { id } = req.params; // 게시글 ID
+    const { userId, title, content } = req.body; // userId는 게시글 작성자 검증용
+
+    if (req.body.image_url_delete_flag == true){
+        imageUrl = null; // 이미지 삭제 플래그가 true인 경우
+    }
+    else if (req.body.image_url_update_flag == true){
+        if (req.file) {
+            imageUrl = `${UPLOAD_DIR_PUBLIC_PATH}/${req.file.filename}`; // 새로운 이미지 파일이 업로드된 경우
+        }
+    }
+    else {
+        imageUrl = undefined; // 이미지 URL이 변경되지 않은 경우
+    }
+
+    try {
+        const db = getDb();
+
+        const existingPost = db.prepare('SELECT user_id, image_url FROM posts WHERE id = ?').get(id);
+        if (!existingPost) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+        if (existingPost.user_id !== userId) {
+            return res.status(403).json({ message: 'You are not authorized to update this post.' });
+        }
+
+        const updateFields = [];
+        const updateValues = [];
+
+        if (title !== undefined) {
+            updateFields.push('title = ?');
+            updateValues.push(title);
+        }
+        if (content !== undefined) {
+            updateFields.push('content = ?');
+            updateValues.push(content);
+        }
+
+        if (imageUrl !== undefined && imageUrl !== existingPost.image_url) {
+            updateFields.push('image_url = ?');
+            updateValues.push(imageUrl);
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({ message: 'No fields provided for update.' });
+        }
+
+        const sql = `UPDATE posts SET ${updateFields.join(', ')} WHERE id = ?`;
+        updateValues.push(id);
+
+        const info = db.prepare(sql).run(...updateValues);
+
+        if (info.changes === 0) {
+            return res.status(400).json({ message: 'Post not updated, possibly no changes or post ID incorrect.' });
+        }
+
+        res.status(200).json({ message: 'Post updated successfully!', postId: id });
+
+    } catch (error) {
+        console.error('Error updating post:', error.message);
+        res.status(500).json({ message: 'Error updating post.', error: error.message });
+    }
+};
+
+
+/**
+ * 게시글을 삭제합니다.
+ * @param {object} req - 요청 객체. URL 파라미터로 게시글 ID (req.params.id)와
+ * req.body에 userId (게시글 작성자 검증용)를 포함합니다.
+ * @param {object} res - 응답 객체.
+ */
+const deletePost = async (req, res) => {
+    const { id } = req.params; // 게시글 ID
+    const { userId } = req.body; // 게시글 작성자 ID
+
+    if (!userId) {
+        return res.status(400).json({ message: 'User ID is required to delete a post.' });
+    }
+
+    try {
+        const db = getDb();
+
+        // 1. 게시글 존재 여부 및 작성자 확인
+        const existingPost = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(id);
+        if (!existingPost) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+        if (existingPost.user_id !== userId) { // userId는 숫자형으로 비교
+            return res.status(403).json({ message: 'You are not authorized to delete this post.' });
+        }
+
+        // 2. 게시글 삭제
+        const stmt = db.prepare('DELETE FROM posts WHERE id = ?');
+        const info = stmt.run(id);
+
+        if (info.changes === 0) {
+            return res.status(400).json({ message: 'Post not deleted, possibly post ID incorrect.' });
+        }
+
+        res.status(200).json({ message: 'Post deleted successfully!', postId: id });
+
+    } catch (error) {
+        console.error('Error deleting post:', error.message);
+        res.status(500).json({ message: 'Error deleting post.', error: error.message });
+    }
+};
+
+
 module.exports = {
     getPostById,
     createPost,
     getNearbyPosts,
     getPostsInViewport,
-    getNearbyPostsUpper
+    getNearbyPostsUpper,
+    updatePost,
+    deletePost
 };

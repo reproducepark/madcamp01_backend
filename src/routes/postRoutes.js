@@ -10,5 +10,7 @@ router.get('/nearby', postController.getNearbyPosts);
 router.get('/nearbyupper', postController.getNearbyPostsUpper); // 상위 행정동 기준 근처 게시글
 router.get('/nearbyviewport', postController.getPostsInViewport); // Rectangular viewport posts
 router.get('/:id', postController.getPostById); // 특정 ID의 Post를 가져오는 라우트 추가
+router.put('/:id', upload.single('image'), postController.updatePost); // 게시글 수정 (이미지 포함)
+router.delete('/:id', postController.deletePost); // 게시글 삭제
 
 module.exports = router;
