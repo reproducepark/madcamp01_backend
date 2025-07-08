@@ -11,9 +11,11 @@ const { title } = require('process');
 const BASE_URL = 'https://api.reproducepark.my/api';
 const UPLOAD_BASE_URL = 'https://api.reproducepark.my/uploads';
 const TEST_IMAGE_PATH = path.join(__dirname, 'test.png');
+const TEST_IMAGE_PATH_2 = path.join(__dirname, 'test2.png'); // 추가: 새로운 테스트 이미지
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 
 const ORIGINAL_IMAGE_MD5 = '1251e844b093eeb27b4452d0c2298d92'; // Make sure this is the actual MD5 of your test.png
+const SECOND_IMAGE_MD5 = '6e21bd51dae43464dbbd7d58bcebd8e0'; // Replace with actual MD5 of test2.png if it exists
 
 // 테스트 데이터
 const testUser = {
@@ -334,6 +336,92 @@ async function downloadImageAndVerifyMD5(imageUrl, outputDir, expectedMd5) {
     }
 }
 
+/**
+ * 게시글을 수정합니다.
+ * @param {number} postId - 수정할 게시글의 ID.
+ * @param {string} userId - 게시글을 수정하는 사용자의 ID.
+ * @param {object} updateData - 업데이트할 게시글 데이터 (title, content, image_url_delete_flag, image_url_update_flag).
+ * @param {string|null} imagePath - 새로운 이미지 파일 경로 (이미지 업데이트 시).
+ * @returns {Promise<object>} - API 응답 데이터.
+ */
+async function updatePostTest(postId, userId, updateData, imagePath = null) {
+    console.log(`\n--- 7. 게시글 수정 테스트 (ID: ${postId}) ---`);
+    try {
+        const formData = new FormData();
+        formData.append('userId', userId);
+        if (updateData.title !== undefined) formData.append('title', updateData.title);
+        if (updateData.content !== undefined) formData.append('content', updateData.content);
+        if (updateData.image_url_delete_flag) {
+            formData.append('image_url_delete_flag', 'true');
+        } else if (updateData.image_url_update_flag && imagePath) {
+            formData.append('image_url_update_flag', 'true');
+            formData.append('image', fs.createReadStream(imagePath));
+        }
+        // console.log('수정할 게시글 데이터:', formData);
+        const response = await axios.put(`${BASE_URL}/posts/${postId}`, formData, {
+            headers: { ...formData.getHeaders() }
+        });
+        // console.log('게시글 수정 응답:', response.data);
+
+        assert.strictEqual(response.status, 200, '게시글 수정은 성공 시 200 상태 코드를 반환해야 합니다.');
+        assert.strictEqual(response.data.message, 'Post updated successfully!', '성공 메시지가 일치해야 합니다.');
+        assert.strictEqual(Number(response.data.postId), postId, '응답의 게시글 ID가 요청한 ID와 일치해야 합니다.');
+
+        // 수정된 게시글을 다시 조회하여 내용이 업데이트되었는지 확인
+        const updatedPost = await getPostByIdTest(postId);
+        if (updateData.title !== undefined) {
+            assert.strictEqual(updatedPost.title, updateData.title, '게시글 제목이 성공적으로 업데이트되어야 합니다.');
+        }
+        if (updateData.content !== undefined) {
+            assert.strictEqual(updatedPost.content, updateData.content, '게시글 내용이 성공적으로 업데이트되어야 합니다.');
+        }
+        if (updateData.image_url_delete_flag) {
+            assert.strictEqual(updatedPost.image_url, null, '이미지 삭제 플래그가 true일 때 image_url은 null이어야 합니다.');
+        }
+
+        console.log('게시글 수정 테스트 성공!');
+        return response.data;
+    } catch (error) {
+        handleApiError(error);
+    }
+}
+
+/**
+ * 게시글을 삭제합니다.
+ * @param {number} postId - 삭제할 게시글의 ID.
+ * @param {string} userId - 게시글을 삭제하는 사용자의 ID.
+ * @returns {Promise<object>} - API 응답 데이터.
+ */
+async function deletePostTest(postId, userId) {
+    console.log(`\n--- 8. 게시글 삭제 테스트 (ID: ${postId}) ---`);
+    try {
+        const response = await axios.delete(`${BASE_URL}/posts/${postId}`, {
+            data: { userId: userId }, // DELETE 요청 시 body에 데이터 전송
+            headers: { 'Content-Type': 'application/json' }
+        });
+        console.log('게시글 삭제 응답:', response.data);
+
+        assert.strictEqual(response.status, 200, '게시글 삭제는 성공 시 200 상태 코드를 반환해야 합니다.');
+        assert.strictEqual(response.data.message, 'Post deleted successfully!', '성공 메시지가 일치해야 합니다.');
+        assert.strictEqual(Number(response.data.postId), postId, '응답의 게시글 ID가 요청한 ID와 일치해야 합니다.');
+
+        // 삭제된 게시글을 다시 조회하여 존재하지 않는지 확인
+        try {
+            await getPostByIdTest(postId);
+            assert.fail('삭제된 게시글이 여전히 존재합니다.');
+        } catch (error) {
+            assert.strictEqual(error.response.status, 404, '삭제된 게시글은 404를 반환해야 합니다.');
+            console.log('게시글이 성공적으로 삭제되었음을 확인했습니다 (404 응답).');
+        }
+
+        console.log('게시글 삭제 테스트 성공!');
+        return response.data;
+    } catch (error) {
+        handleApiError(error);
+    }
+}
+
+
 // --- 테스트 실행기 ---
 
 async function runAllTests() {
@@ -349,6 +437,11 @@ async function runAllTests() {
         console.error('\n--- 오류: ORIGINAL_IMAGE_MD5 값을 test.png의 실제 MD5 값으로 업데이트하세요! ---');
         process.exit(1);
     }
+    // test2.png가 있다면 MD5를 확인하거나 적절한 값을 설정하세요.
+    if (!fs.existsSync(TEST_IMAGE_PATH_2)) {
+         console.warn(`경고: ${TEST_IMAGE_PATH_2} 파일이 없습니다. 이미지 업데이트 테스트가 제한될 수 있습니다.`);
+    }
+
 
     try {
         // 테스트 1: 사용자 온보딩
@@ -385,11 +478,48 @@ async function runAllTests() {
             console.warn('이미지 URL이 없어 이미지 다운로드 및 MD5 검증 테스트를 건너뜁니다.');
         }
 
+        // --- 새로 추가된 테스트 ---
+
+        // 테스트 7-1: 게시글 내용만 수정 (이미지 유지)
+        await updatePostTest(createdPostId, userId, {
+            title: 'Node.js 테스트 글 (수정됨)',
+            content: '내용이 수정되었습니다. 이미지 유지.',
+        });
+
+        // 테스트 7-2: 게시글 이미지 삭제
+        await updatePostTest(createdPostId, userId, {
+            content: '이미지 삭제됨',
+            image_url_delete_flag: true
+        });
+
+        // 테스트 7-3: 게시글 이미지와 내용 모두 업데이트 (새 이미지로 변경)
+        if (fs.existsSync(TEST_IMAGE_PATH_2)) {
+            await updatePostTest(createdPostId, userId, {
+                title: 'Node.js 테스트 글 (완전히 수정됨)',
+                content: '내용과 이미지가 모두 수정되었습니다.',
+                image_url_update_flag: true
+            }, TEST_IMAGE_PATH_2);
+
+            // 업데이트된 이미지 MD5 검증 (선택 사항, 필요시 활성화)
+            const updatedPostData = await getPostByIdTest(createdPostId);
+            const updatedFullImageUrl = `${UPLOAD_BASE_URL}/${path.basename(new URL(updatedPostData.image_url).pathname)}`;
+            await downloadImageAndVerifyMD5(updatedFullImageUrl, DOWNLOAD_DIR, SECOND_IMAGE_MD5);
+        } else {
+            console.warn('test2.png 파일이 없어 게시글 이미지 업데이트 테스트를 건너뜁니다.');
+        }
+
+        // 테스트 8: 게시글 삭제
+        await deletePostTest(createdPostId, userId);
+
         console.log('\n--- 모든 테스트 성공적으로 완료! ---');
 
     } catch (error) {
         console.error('\n--- 하나 이상의 테스트가 실패했습니다! ---');
         process.exit(1);
+    } finally {
+        // 테스트 후 생성된 이미지 파일 정리 (선택 사항)
+        // 예를 들어, multer가 업로드 폴더에 파일을 남기는 경우
+        // fs.readdirSync(DOWNLOAD_DIR).forEach(file => fs.unlinkSync(path.join(DOWNLOAD_DIR, file)));
     }
 }
 
